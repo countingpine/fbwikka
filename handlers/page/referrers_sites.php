@@ -4,7 +4,7 @@
  * 
  * @package		Handlers
  * @subpackage	Referrers	
- * @version		$Id: referrers_sites.php 836 2007-12-05 04:14:40Z BrianKoontz $
+ * @version		$Id: referrers_sites.php 1267 2008-12-20 03:30:54Z BrianKoontz $
  * @license http://www.gnu.org/copyleft/gpl.html GNU General Public License
  * @filesource
  * 
@@ -23,12 +23,10 @@ echo '<div class="page">'."\n"; //TODO: move to templating class
 
 $global = '';
 $IsAdmin = $this->IsAdmin();
-#if (isset($_REQUEST["global"]))
 if (isset($_GET["global"])) #312
 {
 	// referrers to this wiki
 	// prepare UI
-	#$global = $_REQUEST["global"];
 	$global = $_GET["global"]; #312
 	$title = 'Domains/sites linking to this wiki (<a href="'.$this->Href('referrers', '', 'global=1').'">see list of different URLs</a>):'."\n";
 	$referrers = $this->LoadReferrers();

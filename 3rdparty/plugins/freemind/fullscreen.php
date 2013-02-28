@@ -7,7 +7,7 @@
  * @author	{@link http://wikkawiki.org/JsnX Jason Tourtelotte} (first draft)
  * @author	{@link http://wikkawiki.org/JavaWoman Marjolein Katsma} (fixed notices, secured parameters, XHTML compliancy)
  * @license  http://gnu.org/copyleft/gpl.html GNU GPL
- * @version  $Id: fullscreen.php 836 2007-12-05 04:14:40Z BrianKoontz $
+ * @version  $Id: fullscreen.php 1267 2008-12-20 03:30:54Z BrianKoontz $
  * @filesource
  */
 
@@ -51,8 +51,6 @@ function hsc_secure($string, $quote_style=ENT_COMPAT)
    <body>
 
 <?php
-#$mindmap_url = hsc_secure(preg_replace('/&amp;/','&',(trim($_REQUEST['url'])))); // duplicates Wakka::cleanUrl()
-#if (isset($_REQUEST['height'])) $height = hsc_secure(trim($_REQUEST['height'])); // more or less equivalent to Wakka::GetSafeVar()
 $mindmap_url = hsc_secure(preg_replace('/&amp;/','&',(trim($_GET['url'])))); #312 // duplicates Wakka::cleanUrl()
 if (isset($_GET['height'])) $height = hsc_secure(trim($_GET['height'])); #312 // more or less equivalent to Wakka::GetSafeVar()
 

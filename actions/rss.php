@@ -14,7 +14,7 @@
  * NOTE 2: no solution for timeout problems with non-existing feeds yet...
  * 
  * @package		Actions
- * @version		$Id: rss.php 1062 2008-05-02 14:44:11Z NilsLindenberg $
+ * @version		$Id: rss.php 1186 2008-07-08 15:11:40Z NilsLindenberg $
  * @license http://www.gnu.org/copyleft/gpl.html GNU General Public License
  * @filesource
  * 
@@ -45,8 +45,9 @@ if(isset($vars['cachetime']))
 $rss_cache_file = ""; // initial value, no need to ever change
 
 //Action configuration
-$rss_path = $vars['url'];
-if ((!$rss_path) && $wikka_vars) $rss_path = $wikka_vars;
+$rss_path = '';
+if (isset($vars['url'])) $rss_path = $vars['url'];
+if ($rss_path == '' && isset($wikka_vars)) $rss_path = $wikka_vars;
 $rss_path = $this->cleanUrl(trim($rss_path));
 
 // override
