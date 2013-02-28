@@ -19,10 +19,6 @@
  * 
  */
 
-if (!defined('ERROR_COMMENT_NO_KEY')) define('ERROR_COMMENT_NO_KEY', "Your comment cannot be saved. Please contact the wiki administrator(1).");
-if (!defined('ERROR_COMMENT_INVALID_KEY')) define('ERROR_COMMENT_INVALID_KEY', "Your comment cannot be saved. Please contact the wiki administrator(2).");
-if(!defined('ERROR_COMMENT_INVALID_USER')) define('ERROR_COMMENT_INVALID_USER', "Sorry, you\'re not allowed to delete this comment!");
-
 if(isset($_POST['form_id']) && isset($_POST["comment_id"])) 
 {
 	//select comment
@@ -30,23 +26,30 @@ if(isset($_POST['form_id']) && isset($_POST["comment_id"]))
 	$comment = $this->LoadSingle("select user from ".$this->config["table_prefix"]."comments where id = '".$comment_id."' limit 1");
 	$current_user = $this->GetUserName();	
 	
-    if (FALSE == ($aKey = $this->getSessionKey($_POST['form_id'])))	# check if form key was stored in session
+	$delete = FALSE;
+    if (FALSE != ($aKey = $this->getSessionKey($_POST['form_id'])))	# check if form key was stored in session
 	{
-		$this->Redirect($this->Href(), ERROR_COMMENT_NO_KEY);
+		if (TRUE == ($rc = $this->hasValidSessionKey($aKey)))	# check if correct name,key pair was passed
+		{
+			
+			if ($this->UserIsOwner() || $comment["user"]==$current_user)
+			{
+				$delete = TRUE;
+			}
+			
+		}
 	}
-	else if (TRUE != ($rc = $this->hasValidSessionKey($aKey)))	# check if correct name,key pair was passed
-	{
-		$this->Redirect($this->Href(), ERROR_COMMENT_INVALID_KEY);
-	}
-	else if (!$this->UserIsOwner() && !$comment["user"]==$current_user)
-	{
-		$this->Redirect($this->Href(), ERROR_COMMENT_INVALID_USER);
-	}
-	else
+
+	// delete comment
+	if (TRUE === $delete)
 	{
 		$this->Query("DELETE FROM ".$this->config["table_prefix"]."comments WHERE id = '".$comment_id."' LIMIT 1");
 		// redirect to page
 		$this->redirect($this->Href(), 'Comment succesfully deleted.');
+	}
+	else
+	{
+		echo '<div id="content"><em class="error">Sorry, you are not allowed to delete this comment!</em></div>'."\n";
 	}
 }
 ?>

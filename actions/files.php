@@ -39,245 +39,304 @@
  * @todo make datetime format configurable;
  * @todo add support for file versioning;
  * @todo add (AJAX-powered?) confirmation check on file deletion;
- * @todo integrate file table in page template, à la Wacko;
+ * @todo integrate file table in page template, a la Wacko;
  */
 
 // $max_upload_size = "1048576"; // 1 Megabyte
 $max_upload_size = "2097152"; // 2 Megabyte
 
-if (! function_exists('mkdir_r')) {
-    function mkdir_r ($dir) {
-        if (strlen($dir) == 0) return 0;
-        if (is_dir($dir)) return 1;
-        elseif (dirname($dir) == $dir) return 1;
-        return (mkdir_r(dirname($dir)) and mkdir($dir,0755));
-    }
+// File uploads permitted?
+$can_upload_files = (bool) ini_get('file_uploads');
+if(!defined('NO_FILE_UPLOADS')) define ('NO_FILE_UPLOADS', "<em class='error'>File uploads are disallowed on this server</em>");
+if(!defined('NO_FILE_UPLOADED')) define ('NO_FILE_UPLOADED', "<em class='error'>No file uploaded</em>");
+if(!defined('ERROR_DURING_FILE_UPLOAD')) define ('ERROR_DURING_FILE_UPLOAD', "<em class='error'>There was an error uploading your file.  Please try again.</em>");
+if(!defined('ERROR_UPLOAD_DIRECTORY_NOT_WRITABLE')) define('ERROR_UPLOAD_DIRECTORY_NOT_WRITABLE', "<em class='error'>Please make sure that the server has write access to a folder named <tt>%s</tt></em>.");
+if(!defined('ERROR_UPLOAD_DIRECTORY_NOT_READABLE')) define('ERROR_UPLOAD_DIRECTORY_NOT_READABLE', "<em class='error'>Please make sure that the server has read access to a folder named <tt>%s</tt></em>.");
+if(!defined('ERROR_MAX_FILESIZE_EXCEEDED')) define('ERROR_MAX_FILESIZE_EXCEEDED', "<em class='error'>Attempted file upload was too big.  Maximum allowed size is %d MB.</em>"); 
+if(!defined('ERROR_FILE_EXISTS')) define('ERROR_FILE_EXISTS', "<em class='error'>There is already a file named <tt>%s</tt>. Please rename before uploading or delete the existing file first.</em>");
+
+if (! function_exists('mkdir_r')) 
+{
+	/**
+	 * Create upload folder if it does not exist yet.
+	 * 
+	 * @param $dir
+	 * @return bool
+	 */
+	function mkdir_r($dir)
+	{
+		if (strlen($dir) == 0) 
+		{
+			return 0;
+		}
+		if (is_dir($dir)) 
+		{
+			return 1;
+		}
+		elseif (dirname($dir) == $dir) 
+		{
+			return 1;
+		}
+		return (@mkdir($dir,0755));
+	}
 }
 
 if (! function_exists('bytesToHumanReadableUsage')) {
-        /**
-        * Converts bytes to a human readable string
-        * @param int $bytes Number of bytes
-        * @param int $precision Number of decimal places to include in return string
-        * @param array $names Custom usage strings
-        * @return string formatted string rounded to $precision
-        */
-        function bytesToHumanReadableUsage($bytes, $precision = 2, $names = '')
-        {
-           if (!is_numeric($bytes) || $bytes < 0) {
-               return false;
-           }
-       
-           for ($level = 0; $bytes >= 1024; $level++) {    
-               $bytes /= 1024;      
-           }
+		/**
+		* Converts bytes to a human readable string
+		* @param int $bytes Number of bytes
+		* @param int $precision Number of decimal places to include in return string
+		* @param array $names Custom usage strings
+		* @return string formatted string rounded to $precision
+		*/
+		function bytesToHumanReadableUsage($bytes, $precision = 2, $names = '')
+		{
+		   if (!is_numeric($bytes) || $bytes < 0) {
+			   return false;
+		   }
+	   
+		   for ($level = 0; $bytes >= 1024; $level++) {	
+			   $bytes /= 1024;	  
+		   }
    
-           switch ($level)
-           {
-               case 0:
-                   $suffix = (isset($names[0])) ? $names[0] : 'Bytes';
-                   break;
-               case 1:
-                   $suffix = (isset($names[1])) ? $names[1] : 'KB';
-                   break;
-               case 2:
-                   $suffix = (isset($names[2])) ? $names[2] : 'MB';
-                   break;
-               case 3:
-                   $suffix = (isset($names[3])) ? $names[3] : 'GB';
-                   break;      
-               case 4:
-                   $suffix = (isset($names[4])) ? $names[4] : 'TB';
-                   break;                            
-               default:
-                   $suffix = (isset($names[$level])) ? $names[$level] : '';
-                   break;
-           }
+		   switch ($level)
+		   {
+			   case 0:
+				   $suffix = (isset($names[0])) ? $names[0] : 'Bytes';
+				   break;
+			   case 1:
+				   $suffix = (isset($names[1])) ? $names[1] : 'KB';
+				   break;
+			   case 2:
+				   $suffix = (isset($names[2])) ? $names[2] : 'MB';
+				   break;
+			   case 3:
+				   $suffix = (isset($names[3])) ? $names[3] : 'GB';
+				   break;	  
+			   case 4:
+				   $suffix = (isset($names[4])) ? $names[4] : 'TB';
+				   break;							
+			   default:
+				   $suffix = (isset($names[$level])) ? $names[$level] : '';
+				   break;
+		   }
    
-           if (empty($suffix)) {
-               trigger_error('Unable to find suffix for case ' . $level);
-               return false;
-           }
+		   if (empty($suffix)) {
+			   trigger_error('Unable to find suffix for case ' . $level);
+			   return false;
+		   }
    
-           return round($bytes, $precision) . ' ' . $suffix;
-        }
+		   return round($bytes, $precision) . ' ' . $suffix;
+		}
 }
 
-
-if (isset($download) && $download <> '') {
-
-    // link to download a file
-    if ($text == '') $text = $download;
+if (isset($download) && $download <> '') 
+{
+	// link to download a file
+	if ($text == '') $text = $download;
 	//Although $output is passed to ReturnSafeHTML, it's better to sanitize $text here. At least it can avoid invalid XHTML.
 	$text = $this->htmlspecialchars_ent($text);
-    echo "<a href=\"".$this->href('files.xml',$this->GetPageTag(),'action=download&amp;file='.urlencode($download))."\">".$text."</a>";
+	echo "<a href=\"".$this->href('files.xml',$this->GetPageTag(),'action=download&amp;file='.urlencode($download))."\">".$text."</a>";
 
-// } elseif ($this->page AND $this->HasAccess('write') AND ($this->method <> 'print.xml') AND ($this->method <> 'edit')) {
 // Show files to anyone with read access, we'll check for write access if they try to delete a file.
-} elseif ($this->page AND $this->HasAccess('read') AND ($this->method <> 'print.xml') AND ($this->method <> 'edit')) {
+} 
+elseif ($this->page && 
+		$this->HasAccess('read') && 
+		($this->method <> 'print.xml') && 
+		($this->method <> 'edit'))
+{
 
-    // upload path
-    if ($this->config['upload_path'] == '') $this->config['upload_path'] = 'files';
-    $upload_path = $this->config['upload_path'].'/'.$this->GetPageTag();
-    if (! is_dir($upload_path)) mkdir_r($upload_path);
-
-	// upload action
-
-   // if ($_SERVER['REQUEST_METHOD'] == 'POST') 
-	if (isset($_POST['action']) && $_POST['action'] == 'upload') 
+	// upload path 
+	// (Needed for various read functions, regardless of php.ini file_uploads
+	// setting)
+	if ($this->config['upload_path'] == '') $this->config['upload_path'] = 'files';
+	// Try to create root upload_path if it doesn't exist
+	if (!is_dir($this->config['upload_path'])) 
 	{
- 		$uploaded = $_FILES['file']; 
-		switch($_FILES['file']['error'])
+		if(FALSE === mkdir_r($this->config['upload_path']))
 		{
-				case 0:
-	  	  			if ($_FILES["file"]["size"] > $max_upload_size) {
-						echo "<b>Attempted file upload was too big.  Maximum allowed size is ".bytesToHumanReadableUsage($max_upload_size).".</b>"; 
-			 	   		unlink($uploaded['tmp_name']);
-				      } else {	
-					  	$strippedname=str_replace("'","",$uploaded['name']);
-					  	$strippedname=stripslashes($strippedname);
+			echo sprintf(ERROR_UPLOAD_DIRECTORY_NOT_WRITABLE, $this->config['upload_path']);
+			return;
+		}
+	}
 
-						$destfile = $upload_path.'/'.$strippedname;
+	// Try to create page-specific upload_path
+	$upload_path = $this->config['upload_path'] . DIRECTORY_SEPARATOR . $this->GetPageTag();
+	if (!is_dir($upload_path)) 
+	{
+		if(FALSE === mkdir_r($upload_path))
+		{
+			echo sprintf(ERROR_UPLOAD_DIRECTORY_NOT_WRITABLE, $upload_path);
+			return;
+		}
+	}
 
-						if (!file_exists($destfile))
+	if($this->IsAdmin() && $can_upload_files) { 
+		// upload action
+		if (isset($_POST['action']) && $_POST['action'] == 'upload') 
+		{
+			$uploaded = $_FILES['file']; 
+			switch($_FILES['file']['error'])
+			{
+					case 0:
+						if ($_FILES["file"]["size"] > $max_upload_size) 
 						{
-							if (move_uploaded_file($uploaded['tmp_name'], $destfile))
+							echo sprintf(ERROR_MAX_FILESIZE_EXCEEDED, bytesToHumanReadableUsage($max_upload_size)); 
+							unlink($uploaded['tmp_name']);
+						} 
+						else 
+						{	
+							$strippedname=str_replace("'","",$uploaded['name']);
+							$strippedname=stripslashes($strippedname);
+
+							$destfile = $upload_path.'/'.$strippedname;
+
+							if (!file_exists($destfile))
 							{
-								// echo("<b>File was successfully uploaded.</b><br />\n");
+								if (!move_uploaded_file($uploaded['tmp_name'], $destfile))
+								{
+									echo(ERROR_DURING_FILE_UPLOAD . "<br />\n");
+								}
 							}
 							else
 							{
-								echo("<b>There was an error uploading your file.</b><br />\n");
+								echo sprintf(ERROR_FILE_EXISTS, $strippedname);
 							}
 						}
-						else
-						{
-							echo("<b>There is already a file named \"" . $strippedname . "\".</b> <br />\nPlease rename before uploading or delete the existing file below.<br />\n");
-						}
-					}
-					break;
-				case 1:
-				case 2: // File was too big.... as reported by the browser, respecting MAX_FILE_SIZE
-					echo "<b>Attempted file upload was too big. Maximum allowed size is ".bytesToHumanReadableUsage($max_upload_size).".</b>"; 
-					break;
-				case 3:
-					echo("<b>File upload incomplete! Please try again.</b><br />\n");
-					break;
-				case 4:
-					echo("<b>No file uploaded.</b><br />\n");
+						break;
+					case 1:
+					case 2: // File was too big.... as reported by the browser, respecting MAX_FILE_SIZE
+						echo sprintf(ERROR_MAX_FILESIZE_EXCEEDED, bytesToHumanReadableUsage($max_upload_size)); 
+						break;
+					case 3:
+						echo ERROR_DURING_FILE_UPLOAD;
+						break;
+					case 4:
+						echo NO_FILE_UPLOADED;
+			}	
 		}
+	}
 
-    }
+	// If no files exist, then there's no need to display an
+	// attachment table
+	$dir = @opendir($upload_path);
+	if(FALSE === $dir)
+	{
+		// If it can't be opened, it can't be read!
+		echo sprintf(ERROR_UPLOAD_DIRECTORY_NOT_READABLE, $upload_path);
+		return;
+	}
+	$numfiles = 0;
+	$files = array();
+	while ($file = readdir($dir)) 
+	{
+		if (!preg_match('/^\\./', $file)) 
+		{
+			array_push($files, $file);
+			$numfiles++;
+		}
+	}
+	closedir($dir);
 
-    // uploaded files
-        print "
+	if($numfiles > 0)
+	{
+		// uploaded files
+		echo '
 
-                        <table cellspacing='0' cellpadding='0'>
-                          <tr>
-                                <td>
-                                  &nbsp;
-                                </td>
-                                <td bgcolor='gray' valign='bottom' align='center'>
-                                  <font color='white' size='-2'>
-                                        Attachment
-                                  </font>
-                                </td>
-                                <td bgcolor='gray' valign='bottom' align='center'>
-                                  <font color='white' size='-2'>
-                                        Size
-                                  </font>
-                                </td>
-                                <td bgcolor='gray' valign='bottom' align='center'>
-                                  <font color='white' size='-2'>
-                                        Date Added
-                                  </font>
-                                </td>
-                          </tr>
+						<table cellspacing="0" cellpadding="0">
+						  <tr>
+								<td>
+								  &nbsp;
+								</td>
+								<td bgcolor="gray" valign="bottom" align="center">
+								  <span style="color:white;font-size:x-small">
+										Attachment
+								  </span>
+								</td>
+								<td bgcolor="gray" valign="bottom" align="center">
+								   <span style="color:white;font-size:x-small">
+										Size
+								  </span>
+								</td>
+								<td bgcolor="gray" valign="bottom" align="center">
+								   <span style="color:white;font-size:x-small">
+										Date Added
+								  </span>
+								</td>
+						  </tr>
 
-                ";
+				';
 
-    $dir = opendir($upload_path);
-    while ($file = readdir($dir)) {
-        if (!preg_match('/^\\./', $file)) {
-                        $num++;
-				// if ($this->HasAccess('write')) {
-				if ($this->IsAdmin()) {
-             			$delete_link = "<a href=\"".$this->href('files.xml',$this->GetPageTag(),'action=delete&amp;file='.urlencode($file))."\">x</a>";
-            		} else {
-            			$delete_link = "";
+		foreach ($files as $file) 
+		{
+				$num++;
+				if ($this->IsAdmin()) 
+				{
+					$delete_link = "<a href=\"".$this->href('files.xml',$this->GetPageTag(),'action=delete&amp;file='.urlencode($file))."\">x</a>";
+				} 
+				else 
+				{
+					$delete_link = "";
 				}
-				// $download_link = "<a href=\"".$this->href('files.xml',$this->GetPageTag(),'action=download&amp;file='.urlencode($file))."\">".$file."</a>";
-            		$download_link = "<a href=\"".$this->href('files.xml',$this->GetPageTag(),'action=download&amp;file='.rawurlencode($file))."\">".$file."</a>";
-            		// $download_link = "<a href=\"".$this->config["base_url"].$upload_path."\\".rawurlencode($file)."\">".$file."</a>";
-                        $size = bytesToHumanReadableUsage(filesize("$upload_path/$file"));
-                        $date = date("n/d/Y g:i a",filemtime("$upload_path/$file"));
+				$download_link = "<a href=\"".$this->href('files.xml',$this->GetPageTag(),'action=download&amp;file='.rawurlencode($file))."\">".$file."</a>";
+				$size = bytesToHumanReadableUsage(filesize("$upload_path/$file"));
+				$date = date("n/d/Y g:i a",filemtime("$upload_path/$file"));
 
-                        print  "
+						echo '
 
-                                        <tr>
-                                          <td valign='top' align='center'>
-                                                &nbsp;&nbsp;
-                                                {$delete_link}
-                                                &nbsp;&nbsp;
-                                          </td>
-                                          <td valign='top'>
-                                                $download_link
-                                          </td>
-                                          <td valign='top'>
-                                                &nbsp;
-                                                <font size='-1' color='gray'>
-                                                  $size
-                                                </font>
-                                          </td>
-                                          <td valign='top'>
-                                                &nbsp;
-                                                <font size='-1' color='gray'>
-                                                  $date
-                                                </font>
-                                          </td>
-                                        </tr>
+										<tr>
+										  <td valign="top" align="center">
+												&nbsp;&nbsp;
+												'.$delete_link.'
+												&nbsp;&nbsp;
+										  </td>
+										  <td valign="top">
+												'.$download_link.'
+										  </td>
+										  <td valign="top">
+												&nbsp;
+												<span style="color:gray;font-size:small">
+												  '.$size.'
+												</span>
+										  </td>
+										  <td valign="top">
+												&nbsp;
+												<span style="color:gray;font-size:small">
+												 '.$date.'
+												</span>
+										  </td>
+										</tr>
 
-                                ";
-        }
-    }
-    closedir($dir);
+								';
+		}
+	}
 
-        // print n/a if no files currently exist
-        if (!isset($num))  print "<tr><td>&nbsp;</td><td colspan='3' align='center'><font color='gray' size='-1'><em>&nbsp;&nbsp;&nbsp;</em></font></td></tr>";
-        else  print "<tr><td>&nbsp;</td></tr>";
-
-   // if ($this->HasAccess('write')) {
-   if ($this->IsAdmin()) {
-   	// form
-    	$result = "<form action=\"".$this->href()."\" method=\"post\" enctype=\"multipart/form-data\">\n";
-    	if (!$this->config["rewrite_mode"]) $result .= "<input type=\"hidden\" name=\"wakka\" value=\"".$this->MiniHref()."\">\n";
-    	echo $result;
-    	echo $this->FormClose();
-
-        // close disp table
-        print "
-
-                          <tr>
-                                <td>
-                                  &nbsp;
-                                </td>
-                                <td colspan='4' valign='top' align='right' nowrap>
-                                  <em>
-                                        $result
-                                        <input type=\"hidden\" name=\"action\" value=\"upload\"></input>
-					 	    <input type=\"hidden\" name=\"MAX_FILE_SIZE\" value=\"$max_upload_size\">
-                                        <font color='gray' size='-2'>
-                                          add new attachment:
-                                          <input type=\"file\" name=\"file\" style=\"padding: 0px; margin: 0px; font-size: 8px; height: 15px\"></input>
-                                          <input type=\"submit\" value=\"+\" style=\"padding: 0px; margin: 0px; font-size: 8px; height: 15px\"></input>
-						    </font>
-                                        ".$this->FormClose()."
-                                  </em>
-                                </td>
-                          </tr> ";
-
+   if ($this->IsAdmin()) 
+   {
+		if(!$can_upload_files)
+		{
+			echo NO_FILE_UPLOADS;
+		}
+		else
+		{
+			echo '
+							  <tr>
+									<td>
+									  &nbsp;
+									</td>
+									<td colspan="4" valign="top" align="right" nowrap="nowrap">';  	   		
+			echo $this->FormOpen('','','post','','file_upload', TRUE);
+			echo '<input type="hidden" name="MAX_FILE_SIZE" value="'.$max_upload_size.'" />';
+			echo '<input type="hidden" name="action" value="upload" />';
+			echo '											<span style="color:gray;font-size:x-small;font-style:italic;">
+											  add new attachment:
+											  <input type="file" name="file" style="padding: 0px; margin: 0px; font-size: 8px; height: 15px" />
+											  <input type="submit" value="+" style="padding: 0px; margin: 0px; font-size: 8px; height: 15px" />
+										   </span>';
+			echo $this->FormClose();
+			echo "</td>\n</tr>";	
+		}
    }
-   print " </table>  ";
-
+   echo ' </table>  ';
 }
 ?>
