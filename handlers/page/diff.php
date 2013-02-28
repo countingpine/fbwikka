@@ -37,8 +37,13 @@ if (!defined('CONTENT_DELETIONS_HEADER')) define ('CONTENT_DELETIONS_HEADER', 'D
 if (!defined('CONTENT_NO_DIFFERENCES')) define ('CONTENT_NO_DIFFERENCES', 'No Differences');
 if (!defined('WHEN_BY_WHO')) define('WHEN_BY_WHO', '%1$s by %2$s');
 if (!defined('UNREGISTERED_USER')) define('UNREGISTERED_USER', 'unregistered user');
+if (!defined('DIFF_SIMPLE_BUTTON')) define('DIFF_SIMPLE_BUTTON', 'Simple Diff');
+if (!defined('DIFF_FULL_BUTTON')) define('DIFF_FULL_BUTTON', 'Full Diff');
 
 echo '<div class="page">'."\n"; //TODO: move to templating class //TODO move _after_ redirect
+
+$output = '';
+$info = '';
 
 if ($this->HasAccess('read')) 
 {
@@ -56,9 +61,16 @@ if ($this->HasAccess('read'))
 	}
 
 	// load pages
-	$pageA = $this->LoadPageById($_GET['a']);	#312
-	$pageB = $this->LoadPageById($_GET['b']);	#312
-
+	$pageA = (isset($_GET['a'])) ? $this->LoadPageById($_GET['a']) : '';	# #312
+	$pageB = (isset($_GET['b'])) ? $this->LoadPageById($_GET['b']) : '';	# #312
+	if ('' == $pageA || '' == $pageB)
+	{
+		echo '<div class="page">'."\n";
+		echo '<em class="error">'.ERROR_BAD_PARAMETERS.'</em><br />';
+		echo '</div>'."\n";
+		return;
+	}
+	
 	$pageA_edited_by = $pageA['user'];
 	if (!$this->LoadUser($pageA_edited_by)) $pageA_edited_by .= ' ('.UNREGISTERED_USER.')';
 	if ($pageA['note']) $noteA='['.$this->htmlspecialchars_ent($pageA['note']).']'; else $noteA ='';
@@ -72,52 +84,56 @@ if ($this->HasAccess('read'))
 	if (isset($_GET['fastdiff']) && $_GET['fastdiff'])	#312
 	{
 		// prepare bodies
-		$bodyA = explode("\n", $pageA['body']);
-		$bodyB = explode("\n", $pageB['body']);
+		$bodyA = explode("\n", $this->htmlspecialchars_ent($pageA['body']));
+		$bodyB = explode("\n", $this->htmlspecialchars_ent($pageB['body']));
 
 		$added   = array_diff($bodyA, $bodyB);
 		$deleted = array_diff($bodyB, $bodyA);
 		
-		$output .= '<div class="revisioninfo">'."\n";
-		$output .= '<h3>Comparing <a title="Display the revision list for '.$pageA['tag'].'" href="'.$this->Href('revisions').'">revisions</a> for <a title="Return to the current revision of the page" href="'.$this->Href().'">'.$pageA['tag'].'</a></h3>'."\n";
-		$output .= '<ul style="margin: 10px 0;">'."\n";
-		$output .= '	<li><a href="'.$this->Href('show', '', 'time='.urlencode($pageA['time'])).'">['.$pageA['id'].']</a> '.sprintf(WHEN_BY_WHO, '<a class="datetime" href="'.$this->Href('show','','time='.urlencode($pageA["time"])).'">'.$pageA['time'].'</a>', $pageA_edited_by).' <span class="pagenote smaller">'.$noteA.'</span></li>'."\n";
-		$output .= '	<li><a href="'.$this->Href('show', '', 'time='.urlencode($pageB['time'])).'">['.$pageB['id'].']</a> '.sprintf(WHEN_BY_WHO, '<a class="datetime" href="'.$this->Href('show','','time='.urlencode($pageB["time"])).'">'.$pageB['time'].'</a>', $pageB_edited_by).' <span class="pagenote smaller">'.$noteB.'</span></li>'."\n";
-		$output .= '</ul>'."\n";
-		$output .= '</div>'."\n";
+		$info = '<div class="revisioninfo">'."\n";
+		$info .= '<h3>Comparing <a title="Display the revision list for '.$pageA['tag'].'" href="'.$this->Href('revisions').'">revisions</a> for <a title="Return to the current revision of the page" href="'.$this->Href().'">'.$pageA['tag'].'</a></h3>'."\n";
+		$info .= '<ul style="margin: 10px 0;">'."\n";
+		$info .= '	<li><a href="'.$this->Href('show', '', 'time='.urlencode($pageA['time'])).'">['.$pageA['id'].']</a> '.sprintf(WHEN_BY_WHO, '<a class="datetime" href="'.$this->Href('show','','time='.urlencode($pageA["time"])).'">'.$pageA['time'].'</a>', $pageA_edited_by).' <span class="pagenote smaller">'.$noteA.'</span></li>'."\n";
+		$info .= '	<li><a href="'.$this->Href('show', '', 'time='.urlencode($pageB['time'])).'">['.$pageB['id'].']</a> '.sprintf(WHEN_BY_WHO, '<a class="datetime" href="'.$this->Href('show','','time='.urlencode($pageB["time"])).'">'.$pageB['time'].'</a>', $pageB_edited_by).' <span class="pagenote smaller">'.$noteB.'</span></li>'."\n";
+		$info .= '</ul>'."\n";
+		$info .= $this->FormOpen('diff', '', 'GET');
+		$info .= '<input type="hidden" name="fastdiff" value="0" />'."\n";
+		$info .= '<input type="hidden" name="a" value="'.$_GET['a'].'" />'."\n";
+		$info .= '<input type="hidden" name="b" value="'.$_GET['b'].'" />'."\n";
+		$info .= '<input type="submit" value="'.DIFF_FULL_BUTTON.'" />';
+		$info .= $this->FormClose();		
+		$info .= '</div>'."\n";
 		if ($added)
 		{
 			// remove blank lines
 			$output .= "\n".'<h4 class="clear">'.CONTENT_ADDITIONS_HEADER.'</h4>'."\n";
-			$output .= '<div class="additions">'.$this->Format(implode("\n", $added)).'</div>'."\n";
+			$output .= '<div class="wikisource"><ins>'.nl2br(implode("\n", $added)).'</ins></div>'."\n";
 		}
 	
 		if ($deleted)
 		{
 			$output .= "\n".'<h4 class="clear">'.CONTENT_DELETIONS_HEADER.'</h4>'."\n";
-			$output .= '<div class="deletions">'.$this->Format(implode("\n", $deleted)).'</div>'."\n";
+			$output .= '<div class="wikisource"><del>'.nl2br(implode("\n", $deleted)).'</del></div>'."\n";
 		}
 	
 		if (!$added && !$deleted)
 		{
 			$output .= '<br />'."\n".CONTENT_NO_DIFFERENCES;
 		}
-		echo $output;
 	}
 	else
 	{
-		// extract text from bodies SEE #701, part 3, $textA = $pageB['body'] and not $pageA['body'].
-		// That's how it was in release 1.1.6.2
-		$textA = $pageB['body'];
-		$textB = $pageA['body'];
-	
+		// extract text from bodies
+		$textA = $this->htmlspecialchars_ent($pageB['body']);
+		$textB = $this->htmlspecialchars_ent($pageA['body']);
+			
 		$sideA = new Side($textA);
 		$sideB = new Side($textB);
 	
-		$bodyA='';
+		$bodyA = '';
 		$sideA->split_file_into_words($bodyA);
 	
-		$bodyB='';
+		$bodyB = '';
 		$sideB->split_file_into_words($bodyB);
 	
 		// diff on these two file
@@ -136,82 +152,84 @@ if ($this->HasAccess('read'))
 		$sideA->init();
 		$sideB->init();
 
-		echo '<div class="revisioninfo">'."\n";
-		echo '<h3>Comparing <a title="Display the revision list for '.$pageA['tag'].'" href="'.$this->Href('revisions').'">revisions</a> for <a title="Return to the current revision of the page" href="'.$this->Href().'">'.$pageA['tag'].'</a></h3>'."\n";
-		echo '<ul style="margin: 10px 0">'."\n";
-		echo '	<li><a href="'.$this->Href('show', '', 'time='.urlencode($pageA['time'])).'">['.$pageA['id'].']</a> '.sprintf(WHEN_BY_WHO, '<a class="datetime" href="'.$this->Href('show','','time='.urlencode($pageA["time"])).'">'.$pageA['time'].'</a>', $pageA_edited_by).' <span class="pagenote smaller">'.$noteA.'</span></li>'."\n";
-		echo '	<li><a href="'.$this->Href('show', '', 'time='.urlencode($pageB['time'])).'">['.$pageB['id'].']</a> '.sprintf(WHEN_BY_WHO, '<a class="datetime" href="'.$this->Href('show','','time='.urlencode($pageB["time"])).'">'.$pageB['time'].'</a>', $pageB_edited_by).' <span class="pagenote smaller">'.$noteB.'</span></li>'."\n";
-		echo '</ul>'."\n";
-		echo '<p><strong>Highlighting Guide:</strong> <span class="additions">addition</span> <span class="deletions">deletion</span></p>'."\n"; #i18n
-		echo '</div>'."\n";
-		$output='';
+		$info .= '<div class="revisioninfo">'."\n";
+		$info .= '<h3>Comparing <a title="Display the revision list for '.$pageA['tag'].'" href="'.$this->Href('revisions').'">revisions</a> for <a title="Return to the current revision of the page" href="'.$this->Href().'">'.$pageA['tag'].'</a></h3>'."\n";
+		$info .= '<ul style="margin: 10px 0">'."\n";
+		$info .= '	<li><a href="'.$this->Href('show', '', 'time='.urlencode($pageA['time'])).'">['.$pageA['id'].']</a> '.sprintf(WHEN_BY_WHO, '<a class="datetime" href="'.$this->Href('show','','time='.urlencode($pageA["time"])).'">'.$pageA['time'].'</a>', $pageA_edited_by).' <span class="pagenote smaller">'.$noteA.'</span></li>'."\n";
+		$info .= '	<li><a href="'.$this->Href('show', '', 'time='.urlencode($pageB['time'])).'">['.$pageB['id'].']</a> '.sprintf(WHEN_BY_WHO, '<a class="datetime" href="'.$this->Href('show','','time='.urlencode($pageB["time"])).'">'.$pageB['time'].'</a>', $pageB_edited_by).' <span class="pagenote smaller">'.$noteB.'</span></li>'."\n";
+		$info .= '</ul>'."\n";
+		$info .= $this->FormOpen('diff', '', 'GET');
+		$info .= '<input type="hidden" name="fastdiff" value="1" />'."\n";
+		$info .= '<input type="hidden" name="a" value="'.$_GET['a'].'" />'."\n";
+		$info .= '<input type="hidden" name="b" value="'.$_GET['b'].'" />'."\n";
+		$info .= '<input type="submit" value="'.DIFF_SIMPLE_BUTTON.'" />';
+		$info .= $this->FormClose();		
+		$info .= '</div>'."\n";
+		$info .= '<p><strong>Highlighting Guide:</strong> <ins><tt>addition</tt></ins> <del><tt>deletion</tt></del></p>'."\n"; #i18n
 
-		  while (1) {
-		       
-		      $sideO->skip_line();
-		      if ($sideO->isend()) {
-			  break;
-		      }
-	
-		      if ($sideO->decode_directive_line()) {
-			$argument=$sideO->getargument();
-			$letter=$sideO->getdirective();
-		      switch ($letter) {
-			    case 'a':
-			      $resync_left = $argument[0];
-			      $resync_right = $argument[2] - 1;
-			      break;
-	
-			    case 'd':
-			      $resync_left = $argument[0] - 1;
-			      $resync_right = $argument[2];
-			      break;
-	
-			    case 'c':
-			      $resync_left = $argument[0] - 1;
-			      $resync_right = $argument[2] - 1;
-			      break;
-	
-			    }
-	
-			    $sideA->skip_until_ordinal($resync_left);
-			    $sideB->copy_until_ordinal($resync_right,$output);
-	  
-	// deleted word
-	
-			if (($letter=='d') || ($letter=='c')) {
-				$sideA->copy_whitespace($output);
-				$output .="&yen;&yen;";
-				$sideA->copy_word($output);
-				$sideA->copy_until_ordinal($argument[1],$output);
-				$output .=" &yen;&yen;";
+		while (1)
+		{
+			$sideO->skip_line();
+			if ($sideO->isend())
+			{
+				break;
 			}
-	
-	// inserted word
-			    if ($letter == 'a' || $letter == 'c') {
-				$sideB->copy_whitespace($output);
-				$output .="&pound;&pound;";
-				$sideB->copy_word($output);
-				$sideB->copy_until_ordinal($argument[3],$output);
-				$output .=" &pound;&pound;";
+			if ($sideO->decode_directive_line())
+			{
+		    	$argument=$sideO->getargument();
+				$letter=$sideO->getdirective();
+				switch ($letter)
+				{
+					case 'a':
+					$resync_left = $argument[0];
+					$resync_right = $argument[2] - 1;
+					break;
+
+					case 'd':
+					$resync_left = $argument[0] - 1;
+					$resync_right = $argument[2];
+					break;
+
+					case 'c':
+					$resync_left = $argument[0] - 1;
+					$resync_right = $argument[2] - 1;
+					break;
 			    }
 	
-		  }
-	
-		}
-	
-		  $sideB->copy_until_ordinal($count_total_right,$output);
-		  $sideB->copy_whitespace($output);
-		  $out=$this->Format($output);
-		  echo $out;
-	
-	}
+				$sideA->skip_until_ordinal($resync_left);
+				$sideB->copy_until_ordinal($resync_right,$output);
+	  
+				// deleted word
+				if (($letter=='d') || ($letter=='c'))
+				{
+					$sideA->copy_whitespace($output);
+					$output .='<del>';
+					$sideA->copy_word($output);
+					$sideA->copy_until_ordinal($argument[1],$output);
+					$output .='</del>';
+				}
 
+				// inserted word
+				if ($letter == 'a' || $letter == 'c')
+				{
+					$sideB->copy_whitespace($output);
+					$output .='<ins>';
+					$sideB->copy_word($output);
+					$sideB->copy_until_ordinal($argument[3],$output);
+					$output .='</ins>';
+				}
+			}
+		}
+		$sideB->copy_until_ordinal($count_total_right,$output);
+		$sideB->copy_whitespace($output);
+		$output = '<div class="wikisource">'.nl2br($output).'</div>';
+	}
+	echo $info.$output;
 }
 else
 {
 	echo '<em class="error">'.ERROR_NO_PAGE_ACCESS.'</em>'."\n";
 }
+echo '<div style="clear: both"></div>'."\n";
+echo '</div>'."\n";
 ?>
-<div style="clear: both"></div>
-</div>

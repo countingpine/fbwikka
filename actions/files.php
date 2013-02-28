@@ -44,7 +44,7 @@
 
 $max_upload_size = $this->GetConfigValue( 'max_upload_size' );
 
-if ($download <> '') {
+if (isset($download) && $download <> '') {
     // link to download a file
     if ($text == '')
         $text = $download;

@@ -11,20 +11,24 @@
  * @license http://www.gnu.org/copyleft/gpl.html GNU General Public License
  * @filesource
  *
- * @author Hendrik Mans <hendrik@mans.de>
- * @author Jason Tourtelotte <wikka-admin@jsnx.com>
- * @author {@link http://wikkawiki.org/JavaWoman Marjolein Katsma}
- * @author {@link http://wikkawiki.org/NilsLindenberg Nils Lindenberg}
- * @author {@link http://wikkawiki.org/DotMG Mahefa Randimbisoa}
- * @author {@link http://wikkawiki.org/DarTar Dario Taraborelli}
+ * @author	{@link http://www.mornography.de/ Hendrik Mans}
+ * @author	{@link http://wikkawiki.org/JsnX Jason Tourtelotte}
+ * @author	{@link http://wikkawiki.org/JavaWoman Marjolein Katsma}
+ * @author	{@link http://wikkawiki.org/NilsLindenberg Nils Lindenberg}
+ * @author	{@link http://wikkawiki.org/DotMG Mahefa Randimbisoa}
+ * @author	{@link http://wikkawiki.org/DarTar Dario Taraborelli}
+ * @author	{@link http://wikkawiki.org/BrianKoontz Brian Koontz}
  *
  * @copyright Copyright 2002-2003, Hendrik Mans <hendrik@mans.de>
  * @copyright Copyright 2004-2005, Jason Tourtelotte <wikka-admin@jsnx.com>
- * @copyright Copyright 2006-2007 {@link http://wikkawiki.org/CreditsPage Wikka Development Team}
+ * @copyright Copyright 2006-2009 {@link http://wikkawiki.org/CreditsPage Wikka Development Team}
  */
 
 // Time to live for client-side cookies in seconds (90 days)
 if(!defined('PERSISTENT_COOKIE_EXPIRY')) define('PERSISTENT_COOKIE_EXPIRY', 7776000);
+
+// i18n TODO:move to language file
+if(!defined('CREATE_THIS_PAGE_LINK_TITLE')) define('CREATE_THIS_PAGE_LINK_TITLE', 'Create this page');
 
 /**
  * The Wikka core.
@@ -47,6 +51,7 @@ class Wakka
 	var $cookies_sent = false;
 	var $cookie_expiry = PERSISTENT_COOKIE_EXPIRY; 
 	var $wikka_cookie_path;
+	var $additional_headers = array();
 
 	/**
 	 * Constructor
@@ -190,9 +195,9 @@ class Wakka
 		if ('' != trim($path))
 		{
 			// build full (relative) path to requested plugin (method/action/formatter)
-			$fullfilepath = trim($path).DIRECTORY_SEPARATOR.$filename;	#89 - Note $filename may actually already contain a (partial) path
+			$fullfilepath = $this->BuildFullpathFromMultipath($filename, $path);
 			// check if requested file (method/action/formatter) actually exists
-			if (file_exists($fullfilepath))
+			if (FALSE===empty($fullfilepath))
 			{
 				if (is_array($vars))
 				{
@@ -556,18 +561,14 @@ class Wakka
 	 *
 	 * @param	string	$varname required: field name on get or post or cookie name
 	 * @param	string	$gpc one of get, post, request and cookie. Optional, defaults to request.
-	 * @return	string	sanitized value of $_REQUEST[$varname] (or $_GET, $_POST, $_COOKIE, depending on $gpc)
+	 * @return	string	sanitized value of $_GET[$varname] (or $_POST, $_COOKIE, depending on $gpc)
 	 */
-	function GetSafeVar($varname, $gpc='request')
+	function GetSafeVar($varname, $gpc='get')
 	{
 		$safe_var = null;
 		if ($gpc == 'post')
 		{
 			$safe_var = isset($_POST[$varname]) ? $_POST[$varname] : null;
-		}
-		elseif ($gpc == 'request')
-		{
-			$safe_var = isset($_REQUEST[$varname]) ? $_REQUEST[$varname] : null;
 		}
 		elseif ($gpc == 'get')
 		{
@@ -723,42 +724,20 @@ class Wakka
 	function LoadOrphanedPages() { return $this->LoadAll("select distinct tag from ".$this->config["table_prefix"]."pages left join ".$this->config["table_prefix"]."links on ".$this->config["table_prefix"]."pages.tag = ".$this->config["table_prefix"]."links.to_tag where ".$this->config["table_prefix"]."links.to_tag is NULL order by tag"); }
 	function LoadPageTitles() { return $this->LoadAll("select distinct tag from ".$this->config["table_prefix"]."pages order by tag"); }
 	function LoadAllPages() { return $this->LoadAll("select * from ".$this->config["table_prefix"]."pages where latest = 'Y' order by tag"); }
-	// function FullTextSearch($phrase) { return $this->LoadAll("select * from ".$this->config["table_prefix"]."pages where latest = 'Y' and match(tag, body) against('".mysql_real_escape_string($phrase)."')"); }
-	function FullTextSearch($phrase)
+	function FullTextSearch($phrase, $caseSensitive = 0)
 	{
-		$data = "";
-		if ($this->CheckMySQLVersion(4,00,01))
-		{
-			if (preg_match('/[A-Z]/', $phrase)) $phrase = "\"".$phrase."\"";
-			$data = $this->LoadAll(" select * from "
-			.$this->config["table_prefix"]
-			."pages where latest = 'Y' and tag like('%".mysql_real_escape_string($phrase)."%') UNION select * from "
-			.$this->config["table_prefix"]
-			."pages where latest = 'Y' and match(tag, body) against('".mysql_real_escape_string($phrase)
-			."' IN BOOLEAN MODE) order by time DESC");
-		}
+		$id = '';
+		// Should work with any browser/entity conversion scheme
+		$search_phrase = mysql_real_escape_string($phrase);
+		if ( 1 == $caseSensitive ) $id = ', id';
+		$sql  = 'select * from '.$this->config['table_prefix'].'pages';
+		$sql .= ' where latest = '.  "'Y'"  .' and match(tag, body'.$id.')';
+		$sql .= ' against('.  "'$search_phrase'"  .' IN BOOLEAN MODE)';
+		$sql .= ' order by time DESC';
 
-		// else if ($this->CheckMySQLVersion(3,23,23))
-		// {
-		//	$data = $this->LoadAll("select * from "
-		//	.$this->config["table_prefix"]
-		//	."pages where latest = 'Y' and
-		//		  match(tag, body)
-		//		  against('".mysql_real_escape_string($phrase)."')
-		//		  order by time DESC");
-		// }
+		$data = $this->LoadAll($sql);
 
-		/* if no results perform a more general search */
-		if (!$data)  {
-				$data = $this->LoadAll("select * from "
-				.$this->config["table_prefix"]
-				."pages where latest = 'Y' and
-				  (tag like '%".mysql_real_escape_string($phrase)."%' or
-				   body like '%".mysql_real_escape_string($phrase)."%')
-				   order by time DESC");
-		}
-
-		return($data);
+		return $data;
 	}
 	function FullCategoryTextSearch($phrase) { return $this->LoadAll("select * from ".$this->config["table_prefix"]."pages where latest = 'Y' and match(body) against('".mysql_real_escape_string($phrase)."' IN BOOLEAN MODE)"); }
 	function SavePage($tag, $body, $note, $owner=null)
@@ -895,6 +874,13 @@ class Wakka
 	}
 
 	// COOKIES
+	// Note: Be sure to check the auto login functionality in
+	// setup/install.php if any changes are made to the way session
+	// cookies are set. Since these functions are not yet available
+	// when install.php is called, they must be duplicated in that
+	// file. Changes here without appropriate changes in install.php
+	// may result in login/logout failures! See ticket #800 for more
+	// info.
 	function SetSessionCookie($name, $value) {
 		SetCookie($name.$this->config['wiki_suffix'], $value, 0, $this->wikka_cookie_path); $_COOKIE[$name.$this->config['wiki_suffix']] = $value; $this->cookies_sent = true; }
 	function SetPersistentCookie($name, $value) {
@@ -913,7 +899,7 @@ class Wakka
 		}
 	}
 
-	// HTTP/REQUEST/LINK RELATED
+	// HTTP/GET/POST/LINK RELATED
 
 	function SetRedirectMessage($message) { $_SESSION["redirectmessage"] = $message; }
 	function GetRedirectMessage() { $message = $_SESSION["redirectmessage"]; $_SESSION["redirectmessage"] = ""; return $message; }
@@ -960,64 +946,119 @@ class Wakka
 		return $href;
 	}
 	/**
-	 * Link
+	 * Creates a link from Wikka markup.
 	 *
-	 * Beware of the $title parameter: quotes and backslashes should be previously escaped before passed to
-	 * this method.
+	 * Beware of the $title parameter: quotes and backslashes should be previously
+	 * escaped before the title is passed to this method.
 	 *
-	 * @param mixed $tag
-	 * @param string $method
-	 * @param string $text
-	 * @param boolean $track
-	 * @param boolean $escapeText
-	 * @param string $title
-	 * @access public
-	 * @return string
+	 * @access	public
+	 *
+	 * @uses	Wakka::GetInterWikiUrl()
+	 * @uses	Wakka::Href()
+	 * @uses	Wakka::htmlspecialchars_ent()
+	 * @uses	Wakka::LoadPage()
+	 * @uses	Wakka::TrackLinkTo()
+	 * @uses	Wakka::existsPage()
+	 *
+	 * @param	mixed	$tag		mandatory:
+	 * @param	string	$handler	optional:
+	 * @param	string	$text		optional:
+	 * @param	boolean	$track		optional:
+	 * @param	boolean	$escapeText	optional:
+	 * @param	string	$title		optional:
+	 * @param	string	$class		optional:
+	 * @return	string	an HTML hyperlink (a href) element
+	 * @todo	move regexps to regexp-library		#34
 	 */
-	function Link($tag, $method='', $text='', $track=TRUE, $escapeText=TRUE, $title='') {
-		if (!$text) $text = $tag;
-		// escape text?
-		if ($escapeText) $text = $this->htmlspecialchars_ent($text);
+	function Link($tag, $handler='', $text='', $track=TRUE, $escapeText=TRUE, $title='', $class='')
+	{
+		// init
+		if (!$text)
+		{
+			$text = $tag;
+		}
+		if ($escapeText)	// escape text?
+		{
+			$text = $this->htmlspecialchars_ent($text);
+		}
 		$tag = $this->htmlspecialchars_ent($tag); #142 & #148
-		$method = $this->htmlspecialchars_ent($method);
+		$handler = $this->htmlspecialchars_ent($handler);
 		$title_attr = $title ? ' title="'.$this->htmlspecialchars_ent($title).'"' : '';
 		$url = '';
+		$wikilink = '';
 
 		// is this an interwiki link?
-		if (preg_match("/^([A-ZÄÖÜ][A-Za-zÄÖÜßäöü]+)[:](\S*)$/", $tag, $matches))	# before the : should be a WikiName; anything after can be (nearly) anything that's allowed in a URL
+		// before the : should be a WikiName; anything after can be (nearly) anything that's allowed in a URL
+		if (preg_match('/^([A-ZÄÖÜ][A-Za-zÄÖÜßäöü]+)[:](\S*)$/', $tag, $matches))	// @@@ FIXME #34 (inconsistent with Formatter)
 		{
 			$url = $this->GetInterWikiUrl($matches[1], $matches[2]);
+			$class = 'interwiki';
 		}
-		elseif (preg_match("/^(http|https|ftp):\/\/([^\\s\"<>]+)$/", $tag))
+		// fully-qualified URL? this uses the same pattern as StaticHref() does;
+		// it's a recognizing pattern, not a validation pattern
+		// @@@ move to regex libary!
+		elseif (preg_match('/^(http|https|ftp|news|irc|gopher):\/\/([^\\s\"<>]+)$/', $tag))
 		{
 			$url = $tag; // this is a valid external URL
+			// add ext class only if URL is external
+			if (!preg_match('/'.$_SERVER['SERVER_NAME'].'/', $tag))
+			{
+				$class = 'ext';
+			}
 		}
-		// is this a full link? ie, does it contain alpha-numeric characters?
-		elseif (preg_match("/[^[:alnum:],ÄÖÜ,ßäöü]/", $tag))
+		// is this a full link? i.e., does it contain something *else* than valid WikiName characters?
+		// FIXME just use (!IsWikiName($tag)) here (then fix the RE there!)
+		// @@@ First move to regex library
+		elseif (preg_match('/[^[:alnum:]ÄÖÜßäöü]/', $tag))		// FIXED #34 - removed commas
 		{
 			// check for email addresses
-			if (preg_match("/^.+\@.+$/", $tag))
+			if (preg_match('/^.+\@.+$/', $tag))
 			{
-				$url = "mailto:".$tag;
+				$url = 'mailto:'.$tag;
+				$class = 'mailto';
 			}
 			// check for protocol-less URLs
-			else if (!preg_match("/:/", $tag))
+			elseif (!preg_match('/:/', $tag))
 			{
-				$url = "http://".$tag;
+				$url = 'http://'.$tag;
+				$class = 'ext';
 			}
 		}
 		else
 		{
 			// it's a wiki link
-			if ($_SESSION["linktracking"] && $track) $this->TrackLinkTo($tag);
-			$linkedPage = $this->LoadPage($tag);
-			// return ($linkedPage ? "<a href=\"".$this->Href($method, $linkedPage['tag'])."\">".$text."</a>" : "<span class=\"missingpage\">".$text."</span><a href=\"".$this->Href("edit", $tag)."\" title=\"Create this page\">?</a>");
-			return ($linkedPage ? "<a href=\"".$this->Href($method, $linkedPage['tag'])."\"$title_attr>".$text."</a>" : "<a class=\"missingpage\" href=\"".$this->Href("edit", $tag)."\" title=\"Create this page\">".$text."</a>");
+			if (isset($_SESSION['linktracking']) && $_SESSION['linktracking'] && $track)
+			{
+				$this->TrackLinkTo($tag);
+			}
+			//$linkedPage = $this->LoadPage($tag);
+			// return ($linkedPage ? '<a class="'.$class.'" href="'.$this->Href($handler, $linkedPage['tag']).'"'.$title_attr.'>'.$text.'</a>' : '<a class="missingpage" href="'.$this->Href("edit", $tag).'" title="'.CREATE_THIS_PAGE_LINK_TITLE.'">'.$text.'</a>'); #i18n
+			// MODIFIED to use existsPage() (more efficient!)
+			if (!$this->existsPage($tag))
+			{
+				$link = '<a class="missingpage" href="'.$this->Href('edit', $tag).'" title="'.CREATE_THIS_PAGE_LINK_TITLE.'">'.$text.'</a>';
+			}
+			else
+			{
+				$link = '<a class="'.$class.'" href="'.$this->Href($handler, $tag).'"'.$title_attr.'>'.$text.'</a>';
+			}
 		}
-		$external_link_tail = $this->GetConfigValue("external_link_tail");
-		return $url ? "<a class=\"ext\" href=\"$url\">$text</a>$external_link_tail" : $text;
-	}
 
+		//return $url ? '<a class="'.$class.'" href="'.$url.'">'.$text.'</a>' : $text;
+		if ('' != $url)
+		{
+			$result = '<a class="'.$class.'" href="'.$url.'">'.$text.'</a>';
+		}
+		elseif ('' != $link)
+		{
+			$result = $link;
+		}
+		else
+		{
+			$result = $text;
+		}
+		return $result;
+	}
 	// function PregPageLink($matches) { return $this->Link($matches[1]); }
 	function IsWikiName($text) { return preg_match("/^[A-Z,ÄÖÜ][a-z,ßäöü]+[A-Z,0-9,ÄÖÜ][A-Z,a-z,0-9,ÄÖÜ,ßäöü]*$/", $text); }
 	function TrackLinkTo($tag) { $_SESSION["linktable"][] = $tag; }
@@ -1363,9 +1404,13 @@ class Wakka
 #echo 'handler: '.$handler.'<br/>';
 		// now check if a handler by that name exists
 #echo 'checking path: '.$this->GetConfigValue('handler_path').DIRECTORY_SEPARATOR.'page'.DIRECTORY_SEPARATOR.$handler.'.php'.'<br/>';
-		$exists = file_exists($this->GetConfigValue('handler_path').DIRECTORY_SEPARATOR.'page'.DIRECTORY_SEPARATOR.$handler.'.php');
+		$exists = $this->BuildFullpathFromMultipath('page'.DIRECTORY_SEPARATOR.$handler.'.php', $this->GetConfigValue('handler_path')); 
 		// return conclusion
-		return $exists;
+		if(TRUE===empty($exists)) 
+		{ 
+			return FALSE; 
+		} 
+		return TRUE; 
 	}
 
 	// PLUGINS
@@ -1457,6 +1502,53 @@ class Wakka
 		return $this->IncludeBuffered($formatter.'.php', 'Formatter "'.$formatter.'" not found', compact("text"), $this->config['wikka_formatter_path']);
 	}
 
+	/** 
+	 * Build a (possibly valid) filepath from a delimited list of paths  
+	 * 
+	 * This function takes a list of paths delimited by ":"
+	 * (Unix-style), ";" (Window-style), or "," (Wikka-style)  and
+	 * attempts to construct a fully-qualified pathname to a specific
+	 * file.  By default, this function checks to see if the file
+	 * pointed to by the fully-qualified pathname exists.  First valid
+	 * match wins.  Disabling this feature will return the first valid
+	 * constructed path (i.e, a path containing a valid directory, but
+	 * not necessarily pointing to an existant file). 
+	 *  
+	 * @param string $filename mandatory: filename to be used in 
+	 *              construction of fully-qualified filepath  
+	 * @param string $pathlist mandatory: list of 
+	 *              paths (delimited by ":", ";", or ",") 
+	 * @param  boolean $checkIfFileExists optional: if TRUE, returns 
+	 *              only a pathname that points to a file that exists 
+	 *              (default) 
+	 * @return string A fully-qualified pathname or NULL if none found 
+	 */ 
+	function BuildFullpathFromMultipath($filename, $pathlist, $checkIfFileExists=TRUE) 
+	{ 
+		$paths = preg_split('/;|:|,/', $pathlist); 
+		if(empty($paths[0])) return NULL; 
+		if(FALSE === $checkIfFileExists) 
+		{ 
+			// Just return first directory that exists 
+			foreach($paths as $path) 
+			{ 
+				$path = trim($path); 
+				if(file_exists($path)) 
+				{ 
+						return $path.DIRECTORY_SEPARATOR.$filename; 
+				} 
+			} 
+			return NULL; 
+		} 
+		foreach($paths as $path) 
+		{ 
+			$path = trim($path); 
+			$fqfn = $path.DIRECTORY_SEPARATOR.$filename; 
+			if(file_exists($fqfn)) return $fqfn; 
+		} 
+		return NULL; 
+	} 
+
 	// USERS
 	function LoadUser($name, $password = 0) { return $this->LoadSingle("select * from ".$this->config['table_prefix']."users where name = '".mysql_real_escape_string($name)."' ".($password === 0 ? "" : "and password = '".mysql_real_escape_string($password)."'")." limit 1"); }
 	function LoadUsers() { return $this->LoadAll("select * from ".$this->config['table_prefix']."users order by name"); }
@@ -1500,7 +1592,7 @@ class Wakka
 	{ 
 		$where = '';
 		if(!empty($user) && 
-		   ($user == $this->GetUser() || $this->IsAdmin()))
+		   ($this->GetUser() || $this->IsAdmin()))
 		{
 			$where = " where user = '".mysql_real_escape_string($user)."' ";
 		}
@@ -1518,7 +1610,7 @@ class Wakka
 	{
 		$where = ' and 1 ';
 		if(!empty($user) && 
-		   ($user == $this->GetUser() || $this->IsAdmin()))
+		   ($this->GetUser() || $this->IsAdmin()))
 		{
 			$where = " and comments.user = '".mysql_real_escape_string($user)."' ";
 		}
@@ -1625,8 +1717,12 @@ class Wakka
 		return $acl;
 	}
 	function SaveACL($tag, $privilege, $list) {
+		// the $default will be put in the SET statement of the INSERT SQL for default values. It isn't used in UPDATE.
+		$default = "read_acl = '', write_acl = '', comment_acl = '', ";
+		// we strip the privilege_acl from default, to avoid redundancy
+		$default = str_replace($privilege."_acl = '',", '', $default);
 		if ($this->LoadACL($tag, $privilege, 0)) $this->Query("UPDATE ".$this->config["table_prefix"]."acls SET ".mysql_real_escape_string($privilege)."_acl = '".mysql_real_escape_string(trim(str_replace("\r", "", $list)))."' WHERE page_tag = '".mysql_real_escape_string($tag)."' LIMIT 1");
-		else $this->Query("INSERT INTO ".$this->config["table_prefix"]."acls SET page_tag = '".mysql_real_escape_string($tag)."', ".mysql_real_escape_string($privilege)."_acl = '".mysql_real_escape_string(trim(str_replace("\r", "", $list)))."'");
+		else $this->Query("INSERT INTO ".$this->config["table_prefix"]."acls SET $default page_tag = '".mysql_real_escape_string($tag)."', ".mysql_real_escape_string($privilege)."_acl = '".mysql_real_escape_string(trim(str_replace("\r", "", $list)))."'");
 	}
 	function TrimACLs($list) {
 		foreach (explode("\n", $list) as $line)
@@ -1647,6 +1743,7 @@ class Wakka
 		if ($this->UserIsOwner($tag)) return true;
 
 		// see whether user is registered and logged in
+		$registered = false;
 		if ($this->GetUser()) $registered = true;
 
 		// load acl
@@ -1703,6 +1800,22 @@ class Wakka
 		return false;
 	}
 
+	/** 
+	 * Add a custom header to be inserted inside the <meta> tag.  
+	 *  
+	 * @uses Wakka::$additional_headers 
+	 * @param string $additional_headers any valid XHTML code that is legal inside the <meta> tag. 
+	 * @param string $indent optional indent string, default is a tabulation. This will be inserted before $additional_headers 
+	 * @param string $sep optional separator string, this will separate you additional headers. This will be inserted after 
+	 *      $additional_headers, default value is a line feed. 
+	 * @access public 
+	 * @return void 
+	 */ 
+	function AddCustomHeader($additional_headers, $indent = "\t", $sep = "\n") 
+	{ 
+		$this->additional_headers[] = $indent.$additional_headers.$sep; 
+	}
+
 	// MAINTENANCE
 	function Maintenance()
 	{
@@ -1737,7 +1850,6 @@ class Wakka
 			$_COOKIE['wikka_pass'] = "";
 			$this->SetUser($user);
 		}
-		#$this->SetPage($this->LoadPage($tag, (isset($_REQUEST["time"]) ? $_REQUEST["time"] :'')));
 		$this->SetPage($this->LoadPage($tag, (isset($_GET['time']) ? $_GET['time'] :''))); #312
 
 		$this->LogReferrer();
@@ -1773,7 +1885,7 @@ class Wakka
 		{
 			print $this->Header();
 
-			if ($_REQUEST['action'] == 'upload') {
+			if (isset($_POST['action']) && $_POST['action'] == 'upload') {
 				if ($this->page && $this->HasAccess('read')) {
 					switch ($this->method) {
 					case 'print.xml':

@@ -27,6 +27,7 @@ body {
 }
 
 .header {
+	position: relative; /* needed for the correct positioning of system messages */
 	padding: 10px;
 	padding-top: 0px;
 }
@@ -110,13 +111,27 @@ a.ext:hover {
 	color: #933;
 }
 
-.exttail {
-	font-size: 80%;
-	color: #CCC;
-	position: relative;
-	bottom: 0.5ex;
+/* link icons */
+
+.page a.ext {
+	background: url('../images/icons/ext_simple.gif') left bottom no-repeat;
+	padding-left: .8em;
 }
 
+.page a.mailto {
+	background: url('../images/icons/mail.gif') left bottom no-repeat;
+	padding-left: .9em;
+}
+
+.page a.interwiki {
+	background: url('../images/icons/ext.gif') left bottom no-repeat;
+	padding-left: 1em;
+}
+
+a.user, a.user:hover {
+	background: url('../images/icons/user.gif') left bottom no-repeat;
+	padding-left: 1em;
+}
 .header a:hover {
 	color: #933;
 	background: transparent;
@@ -217,6 +232,16 @@ img.icon {
 	border: 1px solid #CCC; 		
 }
 
+/* simply left-float element */
+.left {
+	float:left;
+}
+
+/* simply right-float element */
+.right {
+	float:right;
+}
+
 .clear {clear:both;}
 
 /* text formatting */
@@ -247,6 +272,16 @@ tt {
 
 .hidden {
 	display: none;
+}
+
+.wikisource {
+	font-family: monospace;
+	font-size: 1.1em;
+	color: #666;
+	background-color: #F9F9F9;
+	border: 1px solid #CCC;
+	padding: 1em;
+	margin-bottom: .5em;
 }
 
 .highlight {color: red; background: #FFFFD0;}
@@ -466,6 +501,7 @@ input.highlight {
 	border-bottom-style: dashed;
 }
 
+/* inline system messages */
 em.error {
 	color: #A33; 
 	font-style: normal;
@@ -478,6 +514,22 @@ em.success {
 	font-style: normal;
 	font-weight: bold;
 	font-size: 95%;
+}
+
+/* redirection messages */
+
+div.success {
+	position: fixed;
+	top: 6em;
+	right: 1.5em;
+	max-width: 40%;
+	border: 2px solid #3A3;
+	padding: .2em .4em;
+	color: #3A3; 
+	background-color: #EFE;
+	font-style: normal;
+	font-weight: bold;
+	font-size: 90%;
 }
 
 .comments {display: none;}
@@ -505,7 +557,7 @@ em.success {
 	margin: auto;
 	z-index:20;
 	position:fixed;
-	top: 40px;
+	top: 80px;
 	left: 10px;
 	color: red;
 	font-size: xx-large;
@@ -513,9 +565,16 @@ em.success {
 	padding: 5px;
 }
 
-.additions {background-color: #ccffcc;}
+ins {
+	background-color: #CFC;
+	text-decoration: none;
+}
 
-.deletions {color: #876; background-color: #FC9;}
+del {
+	color: #876;
+	background-color: #FC9;
+	text-decoration: none;
+}
 
 .recentchanges {font-size: 0.9em;}
 

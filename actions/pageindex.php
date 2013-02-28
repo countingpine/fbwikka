@@ -24,17 +24,16 @@
  */
 
 // i18n strings
-define('PAGE_HEADING',"Page Index");
-define('INDEX_CAPTION',"This is an alphabetical list of pages you can read on this server.");
-define('ALL_PAGES',"All");
-define('PAGE_OWNER'," . . . . Owner: %s");
-define('OWNED_PAGES_CAPTION',"Items marked with a * indicate pages that you own.");
-define('ERROR_NO_PAGES_FOUND', "No pages found.");
+if(!defined('PAGE_HEADING')) define('PAGE_HEADING',"Page Index");
+if(!defined('INDEX_CAPTION')) define('INDEX_CAPTION',"This is an alphabetical list of pages you can read on this server.");
+if(!defined('ALL_PAGES')) define('ALL_PAGES',"All");
+if(!defined('PAGE_OWNER')) define('PAGE_OWNER'," . . . . Owner: %s");
+if(!defined('OWNED_PAGES_CAPTION')) define('OWNED_PAGES_CAPTION',"Items marked with a * indicate pages that you own.");
+if(!defined('ERROR_NO_PAGES_FOUND')) define('ERROR_NO_PAGES_FOUND', "No pages found.");
 
 if ($pages = $this->LoadAllPages())
 {
 	// filter by letter
-	#if (isset($_REQUEST['letter'])) $requested_letter = $_REQUEST['letter']; else $requested_letter = '';
 	$requested_letter = (isset($_GET['letter'])) ? $_GET['letter'] : ''; #312 
 	if (!$requested_letter && isset($letter)) $requested_letter = strtoupper($letter); // TODO action parameter (letter) needs to be validated 
 

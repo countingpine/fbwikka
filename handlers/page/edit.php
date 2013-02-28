@@ -34,7 +34,6 @@
  * @uses	Wakka::StopLinkTracking()
  * @uses	Wakka::WriteLinkTable()
  *
- * @todo	optimization using history.back();
  * @todo	use central regex library for validation;
  * @todo	replace $_REQUEST with either $_GET or $_POST (or both if really
  * 			necessary) - #312 => NOT CLEAR here what to do; see also #449
@@ -81,12 +80,15 @@ $error = '';
 $highlight_note = '';
 $note = '';
 $ondblclick = ''; //#123
+
+if(isset($_POST['cancel']) && ($_POST['cancel'] == INPUT_BUTTON_CANCEL))
+{
+	$this->Redirect($this->Href());
+}
+
 if (isset($_POST['submit']) && ($_POST['submit'] == 'Preview') && ($user = $this->GetUser()) && ($user['doubleclickedit'] != 'N'))
 {
 	$ondblclick = ' ondblclick=\'document.getElementById("reedit_id").click();\'';
-	//history.back() not working on IE. (changes are lost)
-	//however, history.back() works fine in FF, and this is the optimized choice
-	//TODO Optimization: Look $_SERVER['HTTP_USER_AGENT'] and use history.back() for good browsers like FF.
 }
 ?>
 <div class="page"<?php echo $ondblclick;?>>
@@ -105,7 +107,7 @@ elseif ($this->HasAccess("write") && $this->HasAccess("read"))
 	}
 	$body = '';
 	$id = $this->page['id'];
-	if($_GET['id'])
+	if(isset($_GET['id']))
 	{
 		$page = $this->LoadPageById(mysql_real_escape_string($_GET['id']));
 		if($page['tag'] != $this->page['tag'])
@@ -138,7 +140,7 @@ elseif ($this->HasAccess("write") && $this->HasAccess("read"))
 			$note = trim($_POST['note']);
 		}
 		// only if saving:
-		if ($_POST['submit'] == 'Store')
+		if (isset($_POST['submit']) && $_POST['submit'] == 'Store')
 		{
 			// check for overwriting
 			if ($this->page)
@@ -213,24 +215,25 @@ elseif ($this->HasAccess("write") && $this->HasAccess("read"))
 		// so we use hsc_secure() on the edit note (as on the body)
 		if ($this->config['require_edit_note'] != 2) //check if edit_notes are enabled
 		{
-			$preview_buttons .= '<input size="'.MAX_EDIT_NOTE_LENGTH.'" type="text" name="note" value="'.$this->hsc_secure($note).'" '.$highlight_note.'/>'.LABEL_EDIT_NOTE.'<br />'."\n";
+			$preview_buttons .= '<input size="'.MAX_EDIT_NOTE_LENGTH.'" maxlength="'.MAX_EDIT_NOTE_LENGTH.'" type="text" name="note" value="'.$this->hsc_secure($note).'" '.$highlight_note.'/>'.LABEL_EDIT_NOTE.'<br />'."\n";
 		}
 		$preview_buttons .= '<input name="submit" type="submit" value="'.INPUT_SUBMIT_STORE.'" accesskey="'.ACCESSKEY_STORE.'" />'."\n".
 			'<input name="submit" type="submit" value="'.INPUT_SUBMIT_REEDIT.'" accesskey="'.ACCESSKEY_REEDIT.'" id="reedit_id" />'."\n".
-			'<input type="button" value="'.INPUT_BUTTON_CANCEL.'" onclick="document.location=\''.$this->href('').'\';" />'."\n";
+			'<input type="submit" value="'.INPUT_BUTTON_CANCEL.'" name="cancel"/>'."\n";
 
 		$output .= '<div class="previewhead">'.PREVIEW_HEADER.'</div>'."\n";
 
 		$output .= $this->Format($body);
 
 		$output .=
+			'<div class="clear">'."\n".	#683
 			$this->FormOpen('edit')."\n".
 			'<input type="hidden" name="previous" value="'.$previous.'" />'."\n".
 			// We need to escape ALL entity refs before display so we display them _as_ entities instead of interpreting them
 			// hence hsc_secure() instead of htmlspecialchars_ent() which UNescapes entities!
 			// JW/2007-02-20: why is this? wouldn't it be  easier for the person editing to show actual characters instead of entities?
 			'<input type="hidden" name="body" value="'.$this->hsc_secure($body).'" />'."\n";	#427
-
+		$output .= '</div>'."\n";	#683
 
 		$output .= "<br />\n".$preview_buttons.$this->FormClose()."\n";
 	}
@@ -282,10 +285,10 @@ elseif ($this->HasAccess("write") && $this->HasAccess("read"))
 		// so we use hsc_secure on the edit note (as on the body)
 		if ($this->config['require_edit_note'] != 2) //check if edit_notes are enabled
 		{
-			$output .= '<input size="'.MAX_EDIT_NOTE_LENGTH.'" type="text" name="note" value="'.$this->hsc_secure($note).'" '.$highlight_note.'/> '.LABEL_EDIT_NOTE.'<br />'."\n";
+			$output .= '<input size="'.MAX_EDIT_NOTE_LENGTH.'" maxlength="'.MAX_EDIT_NOTE_LENGTH.'" type="text" name="note" value="'.$this->hsc_secure($note).'" '.$highlight_note.'/> '.LABEL_EDIT_NOTE.'<br />'."\n";
 		}
 		//finish
-		$output .=	'<input name="submit" type="submit" value="'.INPUT_SUBMIT_STORE.'" accesskey="'.ACCESSKEY_STORE.'" /> <input name="submit" type="submit" value="'.INPUT_SUBMIT_PREVIEW.'" accesskey="'.ACCESSKEY_PREVIEW.'" /> <input type="button" value="'.INPUT_BUTTON_CANCEL.'" onclick="document.location=\''.$this->Href('').'\';" />'."\n".
+		$output .=	'<input name="submit" type="submit" value="'.INPUT_SUBMIT_STORE.'" accesskey="'.ACCESSKEY_STORE.'" /> <input name="submit" type="submit" value="'.INPUT_SUBMIT_PREVIEW.'" accesskey="'.ACCESSKEY_PREVIEW.'" /> <input type="submit" value="'.INPUT_BUTTON_CANCEL.'" name="cancel" />'."\n".
 			$this->FormClose();
 
 		if ($this->config['gui_editor'] == 1)

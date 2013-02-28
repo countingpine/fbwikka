@@ -16,21 +16,21 @@
  * @see /docs/Wikka.LICENSE
  * @filesource
  *
- * @author Hendrik Mans <hendrik@mans.de>
- * @author Jason Tourtelotte <wikka-admin@jsnx.com>
- * @author {@link http://wikkawiki.org/JavaWoman Marjolein Katsma}
- * @author {@link http://wikkawiki.org/NilsLindenberg Nils Lindenberg}
- * @author {@link http://wikkawiki.org/DotMG Mahefa Randimbisoa}
- * @author {@link http://wikkawiki.org/DarTar Dario Taraborelli}
+ * @author	{@link http://www.mornography.de/ Hendrik Mans}
+ * @author	{@link http://wikkawiki.org/JsnX Jason Tourtelotte}
+ * @author	{@link http://wikkawiki.org/JavaWoman Marjolein Katsma}
+ * @author	{@link http://wikkawiki.org/NilsLindenberg Nils Lindenberg}
+ * @author	{@link http://wikkawiki.org/DotMG Mahefa Randimbisoa}
+ * @author	{@link http://wikkawiki.org/DarTar Dario Taraborelli}
+ * @author	{@link http://wikkawiki.org/BrianKoontz Brian Koontz}
+ * @author	{@link http://wikkawiki.org/TormodHaugen Tormod Haugen}
  *
  * @copyright Copyright 2002-2003, Hendrik Mans <hendrik@mans.de>
  * @copyright Copyright 2004-2005, Jason Tourtelotte <wikka-admin@jsnx.com>
- * @copyright Copyright 2006, {@link http://wikkawiki.org/CreditsPage Wikka Development Team}
+ * @copyright Copyright 2006-2009, {@link http://wikkawiki.org/CreditsPage Wikka Development Team}
  *
  * @todo use templating class for page generation;
  * @todo add phpdoc documentation for configuration array elements;
- * @todo	replace $_REQUEST with either $_GET or $_POST (or both if really
- * 			necessary) - #312
  */
 
 //error_reporting(E_ALL);
@@ -65,7 +65,7 @@ if (!defined('WIKI_UPGRADE_NOTICE')) define('WIKI_UPGRADE_NOTICE', 'This site is
 /**
  * Defines the current Wikka version. Do not change the version number or you will have problems upgrading.
  */
-if (!defined('WAKKA_VERSION')) define('WAKKA_VERSION', '1.1.6.5');
+if (!defined('WAKKA_VERSION')) define('WAKKA_VERSION', '1.1.6.6');
 
 /**#@+
  * Simple constant. May be made a configurable value.
@@ -78,6 +78,10 @@ if (!defined('BASIC_COOKIE_NAME')) define('BASIC_COOKIE_NAME', 'Wikkawiki');
  * Length to use for generated part of id attribute.
  */
 define('ID_LENGTH',10);			// @@@ maybe make length configurable
+/**
+ * Character used for multi-path lists
+ */
+if(!defined('PATH_DIVIDER')) define('PATH_DIVIDER', ',');
 /**#@-*/
 
 // Sanity checks - we die if these conditions aren't met
@@ -222,6 +226,7 @@ else
 	$t_query = '?wakka=';
 	$t_rewrite_mode = 0;
 }
+
 $wakkaDefaultConfig = array(
 	'mysql_host'				=> 'localhost',
 	'mysql_database'			=> 'wikka',
@@ -234,19 +239,19 @@ $wakkaDefaultConfig = array(
 	'rewrite_mode'				=> $t_rewrite_mode,
 	'wiki_suffix'				=> '@wikka',
 
-	'action_path'				=> 'actions',
-	'handler_path'				=> 'handlers',
+	'action_path'				=> 'plugins/actions'.PATH_DIVIDER.'actions',
+	'handler_path'				=> 'plugins/handlers'.PATH_DIVIDER.'handlers',
 	'gui_editor'				=> '1',
 	'stylesheet'				=> 'wikka.css',
 
 	// formatter and code highlighting paths
-	'wikka_formatter_path' 		=> 'formatters',		# (location of Wikka formatter - REQUIRED)
+	'wikka_formatter_path' 		=> 'plugins/formatters'.PATH_DIVIDER.'formatters',		# (location of Wikka formatter - REQUIRED)
 	'wikka_highlighters_path'	=> 'formatters',		# (location of Wikka code highlighters - REQUIRED)
 	'geshi_path' 				=> '3rdparty/plugins/geshi',				# (location of GeSHi package)
 	'geshi_languages_path' 		=> '3rdparty/plugins/geshi/geshi',		# (location of GeSHi language highlighting files)
 
 	// template
-	'wikka_template_path' 		=> 'templates',		# (location of Wikka template files - REQUIRED)
+	'wikka_template_path' 		=> 'plugins/templates'.PATH_DIVIDER.'templates',		# (location of Wikka template files - REQUIRED)
 
 	'navigation_links'			=> '[[CategoryCategory Categories]] :: PageIndex ::  RecentChanges :: RecentlyCommented :: [[UserSettings Login/Register]]',
 	'logged_in_navigation_links' => '[[CategoryCategory Categories]] :: PageIndex :: RecentChanges :: RecentlyCommented :: [[UserSettings Change settings/Logout]]',
@@ -348,7 +353,6 @@ if ($wakkaConfig['wakka_version'] !== WAKKA_VERSION)
 	 * installer (which will receive this data) is passed as a $_GET parameter!
 	 */
 	$installAction = 'default';
-	#if (isset($_REQUEST['installAction'])) $installAction = trim($_REQUEST['installAction']);
 	if (isset($_GET['installAction'])) $installAction = trim($_GET['installAction']);	#312
 	if (file_exists('setup'.DIRECTORY_SEPARATOR.'header.php'))
 	include('setup'.DIRECTORY_SEPARATOR.'header.php'); else print '<em class="error">'.ERROR_SETUP_HEADER_MISSING.'</em>'; #89
@@ -375,7 +379,6 @@ session_start();
  *
  * @todo files action uses POST, everything else uses GET #312
  */
-#$wakka = $_REQUEST["wakka"];
 $wakka = $_GET['wakka']; #312
 
 /**

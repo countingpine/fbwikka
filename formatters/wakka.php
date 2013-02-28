@@ -41,7 +41,8 @@ if (!function_exists("wakka2callback")) # DotMG [many lines] : Unclosed tags fix
 	{
 		$thing = $things[1];
 		$result='';
-
+		$valid_filename = '';
+		
 		static $oldIndentLevel = 0;
 		static $oldIndentLength= 0;
 		static $indentClosers = array();
@@ -62,7 +63,6 @@ if (!function_exists("wakka2callback")) # DotMG [many lines] : Unclosed tags fix
 		static $trigger_center = 0;
 		static $trigger_l = array(-1, 0, 0, 0, 0, 0);
 		static $output = '';
-		static $valid_filename = '';
 		static $invalid = '';
 		static $curIndentType;
 
@@ -145,12 +145,12 @@ if (!function_exists("wakka2callback")) # DotMG [many lines] : Unclosed tags fix
 		// additions
 		else if ($thing == "&pound;&pound;")
 		{
-			return (++$trigger_inserted % 2 ? "<div class=\"additions\">" : "</div>");
+			return (++$trigger_inserted % 2 ? "<ins>" : "</ins>");
 		}
 		// deletions
 		else if ($thing == "&yen;&yen;")
 		{
-			return (++$trigger_deleted % 2 ? "<div class=\"deletions\">" : "</div>");
+			return (++$trigger_deleted % 2 ? "<del>" : "</del>");
 		}
 		// center
 		else if ($thing == "@@")
@@ -170,7 +170,9 @@ if (!function_exists("wakka2callback")) # DotMG [many lines] : Unclosed tags fix
 			if (preg_match("/\.(mm)$/si", $url)) { #145
 				return $wakka->Action("mindmap ".$url);
 			} else
-				return $wakka->Link($url).$matches[2];
+				$link = $wakka->Link($url);
+				if(isset($matches[2])) $link .= $matches[2];
+				return $link;
 		}
 		// header level 5
 		else if ($thing == "==")
@@ -311,11 +313,12 @@ if (!function_exists("wakka2callback")) # DotMG [many lines] : Unclosed tags fix
 		// \s : any whitespace character
 		else if (preg_match("/^\[\[(\S*)(\s+(.+))?\]\]$/s", $thing, $matches))		# recognize forced links across lines
 		{
-			list (, $url, , $text) = $matches;
-			if ($url)
+			if (isset($matches[1])) // url?
 			{
 				//if ($url!=($url=(preg_replace("/@@|&pound;&pound;||\[\[/","",$url))))$result="</span>";
-				if (!$text) $text = $url;
+				$text = '';
+				$url = $matches[1];
+				if (isset($matches[3])) $text = $matches[3]; // forced link title
 				//$text=preg_replace("/@@|&pound;&pound;|\[\[/","",$text);
 				return $result.$wakka->Link($url, "", $text);
 			}
