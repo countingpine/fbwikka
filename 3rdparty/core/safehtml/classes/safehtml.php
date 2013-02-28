@@ -190,6 +190,10 @@ class safehtml {
 	if (in_array($name, $this->DeleteContent))
 	{
 	 array_push($this->dcStack, $name);
+	 if(!isset($this->dcCounter[$name]))
+	 {
+		$this->dcCounter[$name] = 0;
+	 }
 	 $this->dcCounter[$name]++;
 	}
 	if (count($this->dcStack)!=0) return true;
@@ -213,7 +217,7 @@ class safehtml {
 	}
 
 	// TABLES: cannot open table elements when we are not inside table
-	if ($this->Counter["table"]<=0 && in_array($name, $this->tableTags)) return true;
+	if (isset($this->Counter['table']) && $this->Counter["table"]<=0 && in_array($name, $this->tableTags)) return true;
 
 	// PARAGRAPHS: close paragraph when closeParagraph tags opening
 	if (in_array($name, $this->closeParagraph) && in_array("p", $this->Stack))
@@ -236,7 +240,7 @@ class safehtml {
 	$this->writeAttrs($attrs, $name);										# pass tag $name to writeAttrs to provide context - JavaWoman
 	$this->xhtml.=">";
 	array_push($this->Stack,$name);
-	$this->Counter[$name]++;
+	$this->Counter[$name] = (isset($this->Counter[$name])) ? $this->Counter[$name] + 1 : 1;
   }
 
   // Closing tag handler
@@ -255,7 +259,7 @@ class safehtml {
 
 	if (count($this->dcStack)!=0) return true;
 
-	if ($this->Counter[$name]>0)
+	if (isset($this->Counter[$name]) && ($this->Counter[$name]>0))
 	{
 	 while ($name!=($tag=array_pop($this->Stack)))
 	   $this->closeTag($tag);

@@ -49,8 +49,21 @@ body {
 
 /* comments */
 
+/* wrapper for the whole comments block, contains the header and the actual comments */
 #comments {
+	margin: 0px;
+	background-color: #DDD;
+	padding-bottom: 10px;
 	border-bottom: 1px solid #CCC;
+}
+
+#comments form {
+	display: inline;
+}
+
+div#comments form input[type=submit] {
+	font-size: 80%;
+	padding: 1px 2px;
 }
 
 #commentheader {
@@ -62,27 +75,59 @@ body {
 	border-top: none;
 }
 
+/* wrapper for the comment lists */
+.commentscontainer {
+}
+
 #commentlist {}
 
-.comment {
+/* alternate color for single comments */
+.comment-layout-1 {
+	background-color: #DDDDDD;
+	padding: 5px;
+	border: 1px solid #CCCCCC;
+	margin: 10px;
+}
+
+.comment-layout-2 {
+	background-color: #EEEEEE;
+	padding: 5px;
+	border: 1px solid #CCCCCC;
+	margin: 10px;
+}
+
+.commentbody {
+}
+
+.commentaction {
+}
+
+.commentform {
 	background-color: #EEE;
 	padding: 10px;
-	border-left: 1px solid #CCC;
-	border-right: 1px solid #CCC;
-	border-top: 1px solid #CCC;
-	border-bottom: 1px solid #EEE;
 }
 
 .commentinfo {
+	color: #999;
+	font-size: 80%;
+	font-family: "Lucida Console", Monaco, monospace;
+}
+
+.commentdeleted {
 	color: #AAA;
 }
 
-#commentform {
-	background-color: #EEE;
-	padding: 10px;
-	border-left: 1px solid #CCC;
-	border-right: 1px solid #CCC;
-	border-top: 1px solid #CCC;
+.commentauthor {
+	font-size: 1.2em;
+	line-height: 20px;
+	color: #000;
+	margin: 5px 5px 0 0;
+}
+
+.commentparent {
+	font-size: 1em;
+	line-height: 20px;
+	margin: 5px;
 }
 
 /* links */
@@ -155,6 +200,15 @@ a#homepage_link {
 #content a.keys:hover {
 	text-decoration: none;
 	color: #333;	
+}
+
+#content a.heading {
+	color: #000;
+}
+
+#content a.heading:hover {
+	color: #000;
+	text-decoration: none;
 }
 
 /* lists */
@@ -424,12 +478,133 @@ fieldset legend {
 	padding:2px;
 }
 
-textarea {
+select {
 	border: 1px solid #CCC;	
 }
 
-textarea:hover {
+select:hover {
 	background-color: #F3F3F3;
+}
+
+select:focus {
+	background-color: #E6E6FF;
+}
+
+/* Usersettings action */
+
+fieldset#account {
+	display: block;
+	min-width: 600px;
+	padding: 10px;
+	background-color: #F6F6F6;
+	text-align: left;
+}
+
+fieldset#account span#account_info {
+	display: block;
+	width: 230px;
+	float: left;
+	margin-bottom: 10px;
+	text-align: right;
+	padding-right: 10px;
+}
+
+fieldset#account input#logout {
+	float: left;
+	margin-left: 0;
+}
+
+fieldset.usersettings {
+	display: block;
+	min-width: 600px;
+	padding: 10px;
+}
+
+fieldset.usersettings fieldset {
+	clear: left;
+	display: block;
+	width: 236px;
+	float: left;
+	margin: 0 0 10px 240px;
+}
+
+fieldset.usersettings fieldset legend {
+	margin: 0;
+}
+
+fieldset.usersettings fieldset input{
+	display: block;
+	float: left;
+	padding: 0;
+	margin: 0;
+}
+
+fieldset.usersettings fieldset label {
+	vertical-align: top;
+	margin: 0 0 0 10px;
+	display: inline;
+	text-align: left;
+	width: auto;
+	float:left;
+}
+
+fieldset.usersettings em {
+	clear: left;
+	float: left;
+	display: block;
+	margin: 0 0 0 240px;
+}
+
+fieldset.usersettings em.usersettings_info {
+	clear: left;
+	float: left;
+	text-align: center;
+	display: block;
+	width: 246px;
+	margin: 0 0 5px 240px;
+	font-style: normal;
+	font-size: 85%;
+	color: #666;
+	border: 1px solid #CCC;
+	background-color: #F0F0F0;
+	padding: 2px;
+}
+
+fieldset.usersettings label {
+	display: block;
+	width: 230px;
+	float: left;
+	margin-bottom: 10px;
+	text-align: right;
+	padding-right: 10px;
+}
+
+fieldset.usersettings select#update_option {
+	display: block;
+	width: 230px;
+	float: left;
+	margin: 0px 10px 10px 0px;
+}
+
+fieldset.usersettings input[type=text], fieldset.usersettings input[type=password] {
+	display: block;
+	width: 250px;
+	float: left;
+	margin-bottom: 10px;
+	border:1px solid #CCC;
+}
+
+fieldset.usersettings input[type=submit] {
+	float: left;
+	margin-left: 250px;
+}
+
+fieldset.usersettings br {
+	clear: left;
+}
+
+textarea {
+	border: 1px solid #CCC;	
 }
 
 textarea:focus {
@@ -566,6 +741,14 @@ div.success {
 	margin-bottom: 1em;
 }
 
+.history_revisioninfo { 
+        float: left; 
+        text-align: left; 
+        padding: 4px; 
+        background: #EEE; 
+        border: 1px solid #CCC;                  
+}
+
 .copyright {
 	font-size: 11px;
 	color: #AAA;
@@ -580,8 +763,8 @@ div.success {
 	margin: auto;
 	z-index:20;
 	position:fixed;
-	top: 80px;
-	left: 10px;
+	top: 70px;
+	right: 10px;
 	color: red;
 	font-size: xx-large;
 	font-weight: bold;
@@ -598,8 +781,6 @@ del {
 	background-color: #FC9;
 	text-decoration: none;
 }
-
-.recentchanges {font-size: 0.9em;}
 
 .pagenote {color: #888;}
 
@@ -914,6 +1095,19 @@ table.calendar a:active {
 	text-decoration: none;
 }
 
+/* RecentChanges action */
+
+ul.recentchanges {
+	list-style-type: none;
+	padding-left: 0;
+	margin-left: 1em;
+	margin-bottom: 1em;
+}
+
+ul.recentchanges li {
+	font-size: 0.9em;
+}
+
 /* Usersettings action */
 table.usersettings {
 }
@@ -1033,13 +1227,56 @@ ul#options_menu li {
     margin-right: 15px;
 }
 
-ul#main_menu li form {
+ul.menu li form {
     display: inline;
 }
 
-ul#main_menu li input {
+ul.menu li input {
 	font-weight: bold;
 	border: none;
 	border-bottom: 2px solid #CCC;
 	background-color: transparent;
+}
+
+ul.menu form#form_logout input[type=submit] {
+    background-color: transparent;
+    border: none;
+    font-family: Verdana, Arial, Helvetica, sans-serif;
+    font-size: inherit;
+    padding: inherit;
+    font-weight: inherit;
+    color: #993357;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+ul#dashboard {
+	position: absolute;
+	top: 0;
+	right: 0;
+	padding: 0 5px 0 5px;
+	background-color: #633;
+	color: #ECC;
+	font-size: 85%;
+	list-style-type: none;
+}
+
+ul#dashboard li {
+	float: left;
+	width: auto;
+	text-align: left; 
+	padding: 0 2pt;
+}
+
+ul#dashboard li a {
+	color: #FFF;
+}
+
+ul#dashboard li > a:hover {
+	  background-color: transparent;
+	  color: #ECC;
+}
+
+ul#dashboard li+li:before {
+	content: " :: ";
 }

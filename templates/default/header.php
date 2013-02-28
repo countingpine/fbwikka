@@ -5,9 +5,9 @@ $user = $this->GetUser();
 $site_base = $this->GetConfigValue("base_url");
 //UniversalEditButton (http://universaleditbutton.org/Universal_Edit_Button) #779
 $ueb = '';
-if ($this->GetMethod() != 'edit' && $this->HasAccess("write", $this->page["tag"])) 
+if ($this->GetHandler() != 'edit' && $this->HasAccess("write", $this->page["tag"]))
 {
-	$ueb .= '	<link rel="alternate" type="application/x-wiki" title="'.sprintf('Click to edit %s', $this->page["tag"]).'" href="'.$this->Href('edit', $this->page["tag"]).'"/>'."\n"; 
+	$ueb .= '	<link rel="alternate" type="application/x-wiki" title="'.sprintf(WIKKA_PAGE_EDIT_LINK_TITLE, $this->page["tag"]).'" href="'.$this->Href('edit', $this->page["tag"]).'"/>'."\n";
 }
 if ( substr_count($site_base, 'wikka.php?wakka=') > 0 ) $site_base = substr($site_base,0,-16);
 ?>
@@ -16,7 +16,7 @@ if ( substr_count($site_base, 'wikka.php?wakka=') > 0 ) $site_base = substr($sit
 <head>
 	<title><?php echo $this->GetWakkaName().": ".$this->PageTitle(); ?></title>
 	<base href="<?php echo $site_base ?>" />
-<?php if ($this->GetMethod() != 'show' || $this->page["latest"] == 'N' || $this->page["tag"] == 'SandBox') echo "<meta name=\"robots\" content=\"noindex, nofollow, noarchive\" />\n"; ?>
+<?php if ($this->GetHandler() != 'show' || $this->page["latest"] == 'N' || $this->page["tag"] == 'SandBox') echo "<meta name=\"robots\" content=\"noindex, nofollow, noarchive\" />\n"; ?>
 	<meta name="generator" content="WikkaWiki" />
 	<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
 	<meta name="keywords" content="<?php echo $this->htmlspecialchars_ent($this->GetConfigValue("meta_keywords")) ?>" />
@@ -26,18 +26,18 @@ if ( substr_count($site_base, 'wikka.php?wakka=') > 0 ) $site_base = substr($sit
 	<link rel="icon" href="<?php echo $this->GetThemePath('/') ?>/images/favicon.ico" type="image/x-icon" />
 	<link rel="shortcut icon" href="<?php echo $this->GetThemePath('/') ?>/images/favicon.ico" type="image/x-icon" />
 <?php
-if ($this->GetMethod() != 'edit')
+if ($this->GetHandler() != 'edit')
 {
 	$rsslink  = '	<link rel="alternate" type="application/rss+xml" title="'.$this->GetWakkaName().': revisions for '.$this->tag.' (RSS)" href="'.$this->Href('revisions.xml', $this->tag).'" />'."\n";
 	$rsslink .= '	<link rel="alternate" type="application/rss+xml" title="'.$this->GetWakkaName().': recently edited pages (RSS)" href="'.$this->Href('recentchanges.xml', $this->tag).'" />'."\n";
-	echo $rsslink;	
+	echo $rsslink;
 }
-if (isset($this->additional_headers) && is_array($this->additional_headers) && count($this->additional_headers)) 
-{ 
-		foreach ($this->additional_headers as $additional_headers) 
-		{ 
-				echo $additional_headers; 
-		} 
+if (isset($this->additional_headers) && is_array($this->additional_headers) && count($this->additional_headers))
+{
+		foreach ($this->additional_headers as $additional_headers)
+		{
+				echo $additional_headers;
+		}
 }
 //UniversalEditButton
 echo $ueb;
@@ -58,4 +58,5 @@ if (isset($message) && strlen($message)>0)
 <h2><a id="homepage_link" href="<?php echo $this->href('', $this->config['root_page'], ''); ?>"><?php echo $this->config['wakka_name'];?></a> : <a href="<?php echo $this->href('backlinks', '', ''); ?>" title="Display a list of pages linking to <?php echo $this->tag ?>"><?php echo $this->GetPageTag(); ?></a></h2>
 <?php echo $this->MakeMenu('main_menu'); ?>
 </div>
+<?php if ($this->IsAdmin()) echo $this->MakeMenu('dashboard'); ?>
 <!-- END PAGE HEADER -->

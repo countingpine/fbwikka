@@ -223,8 +223,28 @@ WikkaEdit.prototype.toolbarButtonClick = function(obj, buttonName, submenuName) 
 		case "image" :		this.toolbarActionClick("we_image"); break;
 		case "table" :		this.addToSelection("|=|header1|=|header2||\n||cell1||cell2||");										// 1.2
 							break;
-		case "rawhtml" :	this.addToSelection("\"\"insert-raw-html-here\"\""); break;
-		case "sourcecode" :	this.addToSelection("%%(language-ref)\ninsert-source-code-here\n%%"); break;
+		case "rawhtml" :
+			//Shift+Click means whole lines
+			var selRange = this.getSelectionRange();
+			if (event.shiftKey) selRange = this.getSelectionRangeWholeLines();
+			if (selRange.end - selRange.start > 0) {
+				this.addToSelection("\"\"","\"\"",null,selRange);
+			} else {
+				var nsr = new SelRange(selRange.start + 2, selRange.start + 22);
+				this.addToSelection("\"\"insert-raw-html-here\"\"","",nsr,selRange);
+			}
+			break;
+		case "sourcecode" :
+			//Shift+Click means whole lines
+			var selRange = this.getSelectionRange();
+			if (event.shiftKey) selRange = this.getSelectionRangeWholeLines();
+			var nsr = new SelRange(selRange.start + 3, selRange.start + 15);
+			if (selRange.end - selRange.start > 0) {
+				this.addToSelection("%%(language-ref)\n", "\n%%", nsr, selRange);
+			} else {
+				this.addToSelection("%%(language-ref)\ninsert-source-code-here\n%%","",nsr,selRange);
+			}
+			break;
 
 		case "find" :		this.showSearchWindow(); break;
 		case "shortcuts" :	this.toggleSubmenu(obj, "shortcuts"); break;
