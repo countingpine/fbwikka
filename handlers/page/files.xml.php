@@ -36,7 +36,8 @@ $file = basename( urldecode( $_GET['file'] ) );
 switch ($_GET['action'])	#312 
 {
     case 'download':
-            if ($this->HasAccess('read')) {
+            // Disallow if file starts with '.'
+            if ($this->HasAccess('read') && (!preg_match('/^\\./', $file))) {
                 $path = $upload_path.DIRECTORY_SEPARATOR.$file;
                 Header("Content-Length: ".filesize($path));
                 Header("Content-Type: application/x-download");

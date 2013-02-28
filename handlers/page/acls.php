@@ -136,7 +136,7 @@ if ($this->UserIsOwner())
 }
 else
 {
-	echo '<!-- <wiki-error>forbidden</wiki-error> --><em>'.NOT_PAGE_OWNER.'</em>'."\n";
+	echo '<!-- <wiki-error>forbidden</wiki-error> --><em class="error">'.NOT_PAGE_OWNER.'</em>'."\n";
 }
 echo '</div>'."\n" //TODO: move to templating class
 ?>

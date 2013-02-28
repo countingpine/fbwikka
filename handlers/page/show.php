@@ -37,7 +37,7 @@
 
 echo "\n".'<!--starting page content-->'."\n";
 echo '<div class="page"';
-echo (($user = $this->GetUser()) && ($user['doubleclickedit'] == 'N') || !$this->HasAccess('write')) ? '' : 'ondblclick="document.location=\''.$this->Href('edit').'\';" '; #268
+echo (($user = $this->GetUser()) && ($user['doubleclickedit'] == 'N') || !$this->HasAccess('write')) ? '' : ' ondblclick="document.location=\''.$this->Href('edit', '', 'id='.$this->page['id']).'\';" '; #268
 echo '>'."\n"; //TODO: move to templating class
 
 if (!$this->HasAccess('read'))
@@ -56,29 +56,32 @@ else
 	{
 		if ($this->page['latest'] == 'N')
 		{
-			echo '<div class="revisioninfo">This is an old revision of <a href="'.$this->Href().'">'.$this->GetPageTag().'</a> from '.$this->page['time'].'.</div>';
-		}
+			echo '<div class="revisioninfo">'."\n";
+			echo '<h4>Revision ['.$this->page['id'].']</h4>'."\n";
+			echo 'This is an <a href="'.$this->Href('revisions').'">old revision</a> of <a href="'.$this->Href().'">'.$this->GetPageTag().'</a> made by '.$this->page['user'].' on <span class="datetime">'.$this->page['time'].'</span>.'."\n";
 
+			// if this is an old revision, display some buttons
+			if ($this->HasAccess('write'))
+			{
+				// added if encapsulation : in case where some pages were brutally deleted from database
+				if ($latest = $this->LoadPage($this->tag))
+				{
+?>
+ 					<?php echo $this->FormOpen('edit') ?>
+ 					<input type="hidden" name="previous" value="<?php echo $latest['id'] ?>" />
+ 					<input type="hidden" name="body" value="<?php echo $this->htmlspecialchars_ent($this->page['body']) ?>" />
+ 					<input type="submit" value="Re-edit this old revision" />
+ 					<?php echo $this->FormClose(); ?>
+<?php
+				}
+			}
+			echo '</div>'."\n";
+		}
 		// display page
 		echo $this->Format($this->page['body'], 'wakka');
-
-		// if this is an old revision, display some buttons
-		if ($this->page['latest'] == 'N' && $this->HasAccess('write'))
-		{
-			// added if encapsulation : in case where some pages were brutally deleted from database
-			if ($latest = $this->LoadPage($this->tag))
-			{
-?>
-		            <br />
- 				<?php echo $this->FormOpen('edit') ?>
- 				<input type="hidden" name="previous" value="<?php echo $latest['id'] ?>" />
- 				<input type="hidden" name="body" value="<?php echo $this->htmlspecialchars_ent($this->page['body']) ?>" />
- 				<input type="submit" value="Re-edit this old revision" />
- 				<?php echo $this->FormClose(); ?>
-<?php
-			}
-		}
+		echo '<div style="clear: both"></div>'."\n";
 		echo '</div>'."\n";
+		echo '<!--closing page content-->'."\n";
 
 		if( $this->GetConfigValue( 'show_attached_files' ) == 1 )
 		{

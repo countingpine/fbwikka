@@ -3,7 +3,7 @@
  * Display a list of recently commented pages.
  *
  * @package		Actions
- * @version		$Id: recentlycommented.php 346 2007-02-27 13:12:27Z JavaWoman $
+ * @version		$Id: recentlycommented.php 915 2008-02-17 09:24:58Z BrianKoontz $
  * @license http://www.gnu.org/copyleft/gpl.html GNU General Public License
  * @filesource
  * 
@@ -26,17 +26,23 @@ if(!defined('COMMENT_SNIPPET_LENGTH')) define('COMMENT_SNIPPET_LENGTH', 120);
 if (!defined('RECENTLY_COMMENTED_HEADING')) define('RECENTLY_COMMENTED_HEADING', '=====Recently commented pages=====');
 if(!defined('ANONYMOUS_COMMENT_AUTHOR')) define('ANONYMOUS_COMMENT_AUTHOR', '(unregistered user)');
 if (!defined('COMMENT_AUTHOR_DIVIDER')) define ('COMMENT_AUTHOR_DIVIDER', ', comment by ');
-if (!defined('NO_RECENTLY_COMMENTED')) define ('NO_RECENTLY_COMMENTED', 'There are no recently commented pages.');
+if (!defined('NO_RECENTLY_COMMENTED')) define ('NO_RECENTLY_COMMENTED', 'There are no recently commented pages%s');
 if (!defined('NO_READABLE_RECENTLY_COMMENTED')) define ('NO_READABLE_RECENTLY_COMMENTED', 'There are no recently commented pages you can read.');
 $readable = 0;
 
+$username = '';
+if(isset($_REQUEST['user']))
+{
+	$username = $this->htmlspecialchars_ent($_REQUEST['user']);
+}
+
 echo $this->Format(RECENTLY_COMMENTED_HEADING.' --- ');
-if ($comments = $this->LoadRecentlyCommented())
+if ($comments = $this->LoadRecentlyCommented(50, $username))
 {
 	$curday = '';
 	foreach ($comments as $comment)
 	{
-		if ($this->HasAccess('read', $comment['page_tag']))
+		if ($this->HasAccess('comment', $comment['page_tag']))
 		{
 			$readable++;
 			// day header
@@ -71,12 +77,19 @@ if ($comments = $this->LoadRecentlyCommented())
 	}
 	if ($readable == 0)
 	{
-		echo '<em>'.NO_READABLE_RECENTLY_COMMENTED.'</em>';
+		echo '<em class="error">'.NO_READABLE_RECENTLY_COMMENTED.'</em>';
 	}
 }
 else
 {
-	echo '<em>'.NO_RECENTLY_COMMENTED.'</em>';
+	if(!empty($username))
+	{
+		echo '<em class="error">'.sprintf(NO_RECENTLY_COMMENTED, " by $username.").'</em>';
+	}
+	else
+	{
+		echo '<em class="error">'.sprintf(NO_RECENTLY_COMMENTED, ".").'</em>';
+	}
 }
 
 ?>

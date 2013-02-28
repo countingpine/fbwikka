@@ -1,36 +1,39 @@
 <?php
 /**
  * This file is part of Wikka, a PHP wiki engine.
- * 
+ *
  * It includes the Wakka class, which provides the core functions
- * to run Wikka. 
+ * to run Wikka.
  *
  * @package Wikka
  * @subpackage Libs
  * @version $Id$
  * @license http://www.gnu.org/copyleft/gpl.html GNU General Public License
  * @filesource
- * 
+ *
  * @author Hendrik Mans <hendrik@mans.de>
  * @author Jason Tourtelotte <wikka-admin@jsnx.com>
  * @author {@link http://wikkawiki.org/JavaWoman Marjolein Katsma}
  * @author {@link http://wikkawiki.org/NilsLindenberg Nils Lindenberg}
  * @author {@link http://wikkawiki.org/DotMG Mahefa Randimbisoa}
  * @author {@link http://wikkawiki.org/DarTar Dario Taraborelli}
- * 
+ *
  * @copyright Copyright 2002-2003, Hendrik Mans <hendrik@mans.de>
  * @copyright Copyright 2004-2005, Jason Tourtelotte <wikka-admin@jsnx.com>
- * @copyright Copyright 2006, {@link http://wikkawiki.org/CreditsPage Wikka Development Team}
+ * @copyright Copyright 2006-2007 {@link http://wikkawiki.org/CreditsPage Wikka Development Team}
  */
- 
+
+// Time to live for client-side cookies in seconds (90 days)
+if(!defined('PERSISTENT_COOKIE_EXPIRY')) define('PERSISTENT_COOKIE_EXPIRY', 7776000);
+
 /**
  * The Wikka core.
- * 
+ *
  * This class contains all the core methods used to run Wikka.
  * @name Wakka
  * @package Wikka
  * @subpackage Libs
- * 
+ *
  */
 class Wakka
 {
@@ -42,6 +45,7 @@ class Wakka
 	var $interWiki = array();
 	var $VERSION;
 	var $cookies_sent = false;
+	var $cookie_expiry = PERSISTENT_COOKIE_EXPIRY; 
 
 	/**
 	 * Constructor
@@ -64,15 +68,25 @@ class Wakka
 	/**
 	 * Database methods
 	 */
-	function Query($query)
+	function Query($query, $dblink='')
 	{
-		$start = $this->GetMicroTime();
-		if (!$result = mysql_query($query, $this->dblink))
+		// init - detect if called from objct or externally
+		if ('' == $dblink)
+		{
+			$dblink = $this->dblink;
+			$object = TRUE;
+			$start = $this->GetMicroTime();
+		}
+		else
+		{
+			$object = FALSE;
+		}
+		if (!$result = mysql_query($query, $dblink))
 		{
 			ob_end_clean();
 			die("Query failed: ".$query." (".mysql_error().")");
 		}
-		if ($this->GetConfigValue("sql_debugging"))
+		if ($object && $this->config['sql_debugging'])
 		{
 			$time = $this->GetMicroTime() - $start;
 			$this->queryLog[] = array(
@@ -91,6 +105,41 @@ class Wakka
 			mysql_free_result($r);
 		}
 		return $data;
+	}
+	/**
+	 * Generic 'count' query.
+	 *
+	 * Get a count of the number of records in a given table that would be matched
+	 * by the given (optional) WHERE criteria. Only a single table can be queried.
+	 *
+	 * @author		{@link http://wikkawiki.org/JavaWoman JavaWoman}
+	 * @license		http://www.gnu.org/copyleft/lesser.html GNU Lesser General Public License
+	 * @since		Wikka 1.1.6.4
+	 * @version		1.1
+	 *
+	 * @access	public
+	 * @uses	Wakka::GetConfigValue()
+	 * @uses	Wakka::Query()
+	 *
+	 * @param	string	$table	required: (logical) table name to query;
+	 *							prefix will be automatically added
+	 * @param	string	$where	optional: criteria to be specified for a WHERE clause;
+	 *							do not include WHERE
+	 * @return	integer	number of matches returned by MySQL
+	 * @todo	move into a database class.
+	 */
+	function getCount($table, $where='')							# JW 2005-07-16
+	{
+		// build query
+		$where = ('' != $where) ? ' WHERE '.$where : '';
+		$query = "
+			SELECT COUNT(*)
+			FROM ".$this->GetConfigValue('table_prefix').$table.
+			$where;
+
+		// get and return the count as an integer
+		$count = (int)mysql_result($this->Query($query),0);
+		return $count;
 	}
 	function CheckMySQLVersion($major, $minor, $subminor)
 	{
@@ -132,13 +181,13 @@ class Wakka
 	function GetMicroTime() { list($usec, $sec) = explode(" ",microtime()); return ((float)$usec + (float)$sec); }
 	function IncludeBuffered($filename, $notfoundText='', $vars='', $path='')
 	{
-		# TODO: change parameter order, so $path (no default,. it's required) 
-		# comes after $filename and only $notfoundtext and $vars will actually 
-		# be optional with a default of ''. MK/2007-03-31    
+		# TODO: change parameter order, so $path (no default,. it's required)
+		# comes after $filename and only $notfoundtext and $vars will actually
+		# be optional with a default of ''. MK/2007-03-31
 
 		// check if required parameter $path is supplied (see TODO)
 		if ('' != trim($path))
-		{ 
+		{
 			// build full (relative) path to requested plugin (method/action/formatter)
 			$fullfilepath = trim($path).DIRECTORY_SEPARATOR.$filename;	#89 - Note $filename may actually already contain a (partial) path
 			// check if requested file (method/action/formatter) actually exists
@@ -160,7 +209,7 @@ class Wakka
 		}
 		if ('' != trim($notfoundText))
 		{
-			return $this->htmlspecialchars_ent(trim($notfoundText));	# [SEC] make error (including (part of) request) safe to display
+			return '<em class="error">'.$this->htmlspecialchars_ent(trim($notfoundText)).'</em>';	# [SEC] make error (including (part of) request) safe to display
 		}
 		else
 		{
@@ -168,6 +217,112 @@ class Wakka
 		}
 	}
 
+	/**
+	 * Create a unique id for an HTML element.
+	 *
+	 * Although - given Wikka accepts can use embedded HTML - it cannot be
+	 * guaranteed that an id generated by this method is unique it tries its
+	 * best to make it unique:
+	 * - ids are organized into groups, with the group name used as a prefix
+	 * - if an id is specified it is compared with other ids in the same group;
+	 *   if an identical id exists within the same group, a sequence suffix is
+	 *   added, otherwise the specified id is accepted and recorded as a member
+	 *   of the group
+	 * - if no id is specified (or an invalid one) an id will be generated, and
+	 *   given a sequence suffix if needed
+	 *
+	 * For headings, it is possible to derive an id from the heading content;
+	 * to support this, any embedded whitespace is replaced with underscores
+	 * to generate a recognizable id that will remain (mostly) constant even if
+	 * new headings are inserted in a page. (This is not done for embedded
+	 * HTML.)
+	 *
+	 * The method supports embedded HTML as well: as long as the formatter
+	 * passes each id found in embedded HTML through this method it can take
+	 * care that the id is valid and unique.
+	 * This works as follows:
+	 * - indicate an 'embedded' id with group 'embed'
+	 * - NO prefix will be added for this reserved group
+	 * - ids will be recorded and checked for uniqueness and validity
+	 * - invalid ids are replaced
+	 * - already-existing ids in the group are given a sequence suffix
+	 * The result is that as long as the already-defined id is valid and
+	 * unique, it will be remain unchanged (but recorded to ensure uniqueness
+	 * overall).
+	 *
+	 * @author		{@link http://wikka.jsnx.com/JavaWoman JavaWoman}
+	 * @copyright	Copyright © 2005, Marjolein Katsma
+	 * @license		http://www.gnu.org/copyleft/lesser.html GNU Lesser General Public License
+	 * @since		Wikka 1.1.6.4
+	 * @version		1.0
+	 *
+	 * @access	public
+	 * @uses	ID_LENGTH
+	 *
+	 * @param	string	$group	required: id group (e.g. form, head); will be
+	 *							used as prefix (except for the reserved group
+	 *							'embed' to be used for embedded HTML only)
+	 * @param	string	$id		optional: id to use; if not specified or
+	 *							invalid, an id will be generated; if not
+	 *							unique, a sequence number will be appended
+	 * @return	string	resulting id
+	 */
+	function makeId($group,$id='')
+	{
+		// initializations
+		static $aSeq = array();										# group sequences
+		static $aIds = array();										# used ids
+
+		// preparation for group
+		if (!preg_match('/^[A-Z-a-z]/',$group))						# make sure group starts with a letter
+		{
+			$group = 'g'.$group;
+		}
+		if (!isset($aSeq[$group]))
+		{
+			$aSeq[$group] = 0;
+		}
+		if (!isset($aIds[$group]))
+		{
+			$aIds[$group] = array();
+		}
+		if ('embed' != $group)
+		{
+			$id = preg_replace('/\s+/','_',trim($id));				# replace any whitespace sequence in $id with a single underscore
+		}
+
+		// validation (full for 'embed', characters only for other groups since we'll add a prefix)
+		if ('embed' == $group)
+		{
+			$validId = preg_match('/^[A-Za-z][A-Za-z0-9_:.-]*$/',$id);	# ref: http://www.w3.org/TR/html4/types.html#type-id
+		}
+		else
+		{
+			$validId = preg_match('/^[A-Za-z0-9_:.-]*$/',$id);
+		}
+
+		// build or generate id
+		if ('' == $id || !$validId || in_array($id,$aIds))			# ignore specified id if it is invalid or exists already
+		{
+			$id = substr(md5($group.$id),0,ID_LENGTH);				# use group and id as basis for generated id
+		}
+		$idOut = ('embed' == $group) ? $id : $group.'_'.$id;		# add group prefix (unless embedded HTML)
+		if (in_array($id,$aIds[$group]))
+		{
+			$idOut .= '_'.++$aSeq[$group];							# add suffiX to make ID unique
+		}
+
+		// result
+		$aIds[$group][] = $id;										# keep track of both specified and generated ids (without suffix)
+		return $idOut;
+	}
+
+	/**
+	 * Strip potentially dangerous tags from embedded HTML.
+	 *
+	 * @param	string $html mandatory: HTML to be secured
+	 * @return	string sanitized HTML
+	 */
 	function ReturnSafeHTML($html)
 	{
 		require_once('3rdparty/core/safehtml/classes/safehtml.php');
@@ -184,16 +339,16 @@ class Wakka
 	 * Make sure a (user-provided) URL does use &amp; instead of & and is protected from attacks.
 	 *
 #	 * Any already-present '&amp;' is first turned into '&'; then htmlspecialchars() is applied so
-	 * Any already-present '&amp;' is first turned into '&'; then hsc_secure() 
-	 * is applied so all ampersands are "escaped" while characters that could be 
-	 * used to create a script attack (< > or ") are "neutralized" by escaping 
+	 * Any already-present '&amp;' is first turned into '&'; then hsc_secure()
+	 * is applied so all ampersands are "escaped" while characters that could be
+	 * used to create a script attack (< > or ") are "neutralized" by escaping
 	 * them.
 	 *
-	 * This method should be applied on any user-provided url in actions, 
+	 * This method should be applied on any user-provided url in actions,
 	 * handlers etc.
-	 * 
+	 *
 	 * Note: hsc_secure() is the secure replacement for PHP's htmlspecialchars().
-	 * See #427. 
+	 * See #427.
 	 *
 	 * @author		{@link http://wikkawiki.org/JavaWoman JavaWoman}
 	 * @copyright	Copyright © 2004, Marjolein Katsma
@@ -214,38 +369,38 @@ class Wakka
 	/**
 	 * Wrapper around hsc_secure() which preserves entity references.
 	 *
-	 * The first two parameters for this function as the same as those for 
+	 * The first two parameters for this function as the same as those for
 	 * htmlspecialchars() in PHP: the text to be treated, and an optional
-	 * parameter determining how to handle quotes; both these parameters are 
+	 * parameter determining how to handle quotes; both these parameters are
 	 * passed on to our hsc_secure() replacement for htmlspecialchars().
-	 * 
+	 *
 	 * Since hsc_secure() does not need a character set parameter, we don't
 	 * have that here any more either.
-	 * 
-	 * A third 'doctype' parameter is for local use only and determines how 
-	 * pre-existing entity references are treated after hsc_secure() has done 
+	 *
+	 * A third 'doctype' parameter is for local use only and determines how
+	 * pre-existing entity references are treated after hsc_secure() has done
 	 * its work: numeic entity references are always "unescaped' since they are
 	 * valid for both HTML and XML doctypes; for XML the named entity references
 	 * for the special characters are unescaped as well, while for for HTML any
-	 * named entity reference is unescaped. This parameter is optional and 
-	 * defaults to HTML.   
+	 * named entity reference is unescaped. This parameter is optional and
+	 * defaults to HTML.
 	 *
-	 * The function first applies hsc_secure() to the input string and then 
-	 * "unescapes" character entity references and numeric character references 
+	 * The function first applies hsc_secure() to the input string and then
+	 * "unescapes" character entity references and numeric character references
 	 * (both decimal and hexadecimal).
-	 * Entities are recognized also if the ending semicolon is omitted at the 
-	 * end or before a newline or tag but for consistency the semicolon is 
+	 * Entities are recognized also if the ending semicolon is omitted at the
+	 * end or before a newline or tag but for consistency the semicolon is
 	 * always added in the output where it was omitted.
 	 *
 	 * Usage note:
-	 * Where code should be rendered <em>as code</em> hsc_secure() should be 
-	 * used directly so that entity references are also rendered as such instead 
+	 * Where code should be rendered <em>as code</em> hsc_secure() should be
+	 * used directly so that entity references are also rendered as such instead
 	 * of as their corresponding characters.
-	 * 
+	 *
 	 * Documentation note:
-	 * It seems the $doctype parameter was added in 1.1.6.2; version should have 
+	 * It seems the $doctype parameter was added in 1.1.6.2; version should have
 	 * been bumped up to 1.1, and the param documented. We'll assume the updated
-	 * version was indeed 1.1, and put this one using hsc_secure() at 1.2 (at 
+	 * version was indeed 1.1, and put this one using hsc_secure() at 1.2 (at
 	 * the same time updating the 'XML' doctype with apos as named entity).
 	 *
 	 * @access	public
@@ -254,32 +409,32 @@ class Wakka
 	 *
 	 * @uses	Wakka::hsc_secure()
 	 * @param	string	$text required: text to be converted
-	 * @param	integer	$quote_style optional: quoting style - can be ENT_COMPAT 
-	 * 			(default, escape only double quotes), ENT_QUOTES (escape both 
-	 * 			double and single quotes) or ENT_NOQUOTES (don't escape any 
+	 * @param	integer	$quote_style optional: quoting style - can be ENT_COMPAT
+	 * 			(default, escape only double quotes), ENT_QUOTES (escape both
+	 * 			double and single quotes) or ENT_NOQUOTES (don't escape any
 	 * 			quotes)
 	 * @param	string $doctype 'HTML' (default) or 'XML'; for XML only the XML
 	 * 			standard entities are unescaped so we'll have valid XML content
-	 * @return	string	converted string with escaped special characted but 
+	 * @return	string	converted string with escaped special characted but
 	 * 			entity references intact
-	 * 
-	 * @todo	(maybe) recognize valid html entities and only leave those 
+	 *
+	 * @todo	(maybe) recognize valid html entities and only leave those
 	 * 			alone, thus transform &error; to &amp;error;
-	 * @todo	later - maybe) support full range of situations where (in SGML) 
-	 * 			a terminating ; may legally be omitted (end, newline and tag are 
-	 * 			merely the most common ones); such usage is quite rare though 
+	 * @todo	later - maybe) support full range of situations where (in SGML)
+	 * 			a terminating ; may legally be omitted (end, newline and tag are
+	 * 			merely the most common ones); such usage is quite rare though
 	 * 			and may not be worth the effort
 	 */
 	function htmlspecialchars_ent($text,$quote_style=ENT_COMPAT,$doctype='HTML')
 	{
 		// re-establish default if overwritten because of third parameter
 		// [ENT_COMPAT] => 2
-	    // [ENT_QUOTES] => 3
-	    // [ENT_NOQUOTES] => 0
+		// [ENT_QUOTES] => 3
+		// [ENT_NOQUOTES] => 0
 		if (!in_array($quote_style,array(ENT_COMPAT,ENT_QUOTES,ENT_NOQUOTES))) {
-			$quote_style = ENT_COMPAT;	
+			$quote_style = ENT_COMPAT;
 		}
-		
+
 		// define patterns
 		$terminator = ';|(?=($|[\n<]|&lt;))';	// semicolon; or end-of-string, newline or tag
 		$numdec = '#[0-9]+';					// numeric character reference (decimal)
@@ -287,7 +442,7 @@ class Wakka
 		if ($doctype == 'XML')					// pure XML allows only named entities for special chars
 		{
 			// only valid named entities in XML (case-sensitive)
-			$named = 'lt|gt|quot|apos|amp';			
+			$named = 'lt|gt|quot|apos|amp';
 			$ignore_case = '';
 			$entitystring = $named.'|'.$numdec.'|'.$numhex;
 		}
@@ -312,69 +467,69 @@ class Wakka
 
 	/**
 	 * Secure replacement for PHP built-in function htmlspecialchars().
-	 * 
-	 * See ticket #427 (http://wush.net/trac/wikka/ticket/427) for the rationale 
+	 *
+	 * See ticket #427 (http://wush.net/trac/wikka/ticket/427) for the rationale
 	 * for this replacement function.
-	 * 
+	 *
 	 * The INTERFACE for this function is almost the same as that for
 	 * htmlspecialchars(), with the same default for quote style; however, there
 	 * is no 'charset' parameter. The reason for this is as follows:
-	 * 
+	 *
 	 * The PHP docs say:
 	 * 	"The third argument charset defines character set used in conversion."
-	 * 
+	 *
 	 * I suspect PHP's htmlspecialchars() is working at the byte-value level and
-	 * thus _needs_ to know (or asssume) a character set because the special 
+	 * thus _needs_ to know (or assume) a character set because the special
 	 * characters to be replaced could exist at different code points in
-	 * different character sets. (If indeed htmlspecialchars() works at 
-	 * byte-value level that goes some  way towards explaining why the 
-	 * vulnerability would exist in this function, too, and not only in 
+	 * different character sets. (If indeed htmlspecialchars() works at
+	 * byte-value level that goes some  way towards explaining why the
+	 * vulnerability would exist in this function, too, and not only in
 	 * htmlentities() which certainly is working at byte-value level.)
-	 * 
+	 *
 	 * This replacement function however works at character level and should
-	 * therefore be "immune" to character set differences - so no charset 
+	 * therefore be "immune" to character set differences - so no charset
 	 * parameter is needed or provided. If a third parameter is passed, it will
 	 * be silently ignored.
-	 * 
+	 *
 	 * In the OUTPUT there is a minor difference in that we use '&#39;' instead
 	 * of PHP's '&#039;' for a single quote: this provides compatibility with
 	 * 	get_html_translation_table(HTML_SPECIALCHARS, ENT_QUOTES)
-	 * (see comment by mikiwoz at yahoo dot co dot uk on 
-	 * http://php.net/htmlspecialchars); it also matches the entity definition 
-	 * for XML 1.0 
-	 * (http://www.w3.org/TR/xhtml1/dtds.html#a_dtd_Special_characters). 
-	 * Like PHP we use a numeric character reference instead of '&apos;' for the 
-	 * single quote. For the other special characters we use the named entity 
+	 * (see comment by mikiwoz at yahoo dot co dot uk on
+	 * http://php.net/htmlspecialchars); it also matches the entity definition
+	 * for XML 1.0
+	 * (http://www.w3.org/TR/xhtml1/dtds.html#a_dtd_Special_characters).
+	 * Like PHP we use a numeric character reference instead of '&apos;' for the
+	 * single quote. For the other special characters we use the named entity
 	 * references, as PHP is doing.
-	 * 
+	 *
 	 * And finally:
-	 * The name for this function was basically inspired by waawaamilk (GeSHi), 
-	 * kindly provided by BenBE (GeSHi), happily acknowledged by WikkaWiki Dev 
+	 * The name for this function was basically inspired by waawaamilk (GeSHi),
+	 * kindly provided by BenBE (GeSHi), happily acknowledged by WikkaWiki Dev
 	 * Team and finally used by JavaWoman. :)
-	 * 
+	 *
 	 * @author 		{@link http://wikkawiki.org/JavaWoman Marjolein Katsma}
 	 *
 	 * @since		Wikka 1.1.7
 	 * @version		1.0
-	 * @license		http://www.gnu.org/copyleft/lgpl.html 
+	 * @license		http://www.gnu.org/copyleft/lgpl.html
 	 * 				GNU Lesser General Public License
-	 * @copyright	Copyright 2007, {@link http://wikkawiki.org/CreditsPage 
+	 * @copyright	Copyright 2007, {@link http://wikkawiki.org/CreditsPage
 	 * 				Wikka Development Team}
-	 * 
+	 *
 	 * @access	public
 	 * @param	string	$string	string to be converted
-	 * @param	integer	$quote_style 
+	 * @param	integer	$quote_style
 	 * 			- ENT_COMPAT:   escapes &, <, > and double quote (default)
 	 * 			- ENT_NOQUOTES: escapes only &, < and >
 	 * 			- ENT_QUOTES:   escapes &, <, >, double and single quotes
-	 * @return	string	converted string   
+	 * @return	string	converted string
 	 */
 	 function hsc_secure($string, $quote_style=ENT_COMPAT)
 	 {
-	 	// init
-	 	$aTransSpecchar = array('&' => '&amp;',
-	 							'"' => '&quot;',
-	 							'<' => '&lt;',
+		// init
+		$aTransSpecchar = array('&' => '&amp;',
+								'"' => '&quot;',
+								'<' => '&lt;',
 								'>' => '&gt;'
 								);			// ENT_COMPAT set
 		if (ENT_NOQUOTES == $quote_style)	// don't convert double quotes
@@ -447,8 +602,8 @@ class Wakka
 	 * @since	wikka 1.1.6.0
 	 * @uses	Wakka::config
 	 * @uses	GeShi
-	 * @todo		support for GeSHi line number styles
-	 * @todo		enable error handling
+	 * @todo	support for GeSHi line number styles
+	 * @todo	enable error handling
 	 *
 	 * @param	string	$sourcecode	required: source code to be highlighted
 	 * @param	string	$language	required: language spec to select highlighter
@@ -500,7 +655,7 @@ class Wakka
 
 		// parse and return highlighted code
 		// comments added to make GeSHi-highlighted block visible in code JW/20070220
-		return '<!--start GeSHi-->'."\n".$geshi->parse_code()."\n".'<!--end GeSHi-->'."\n";	
+		return '<!--start GeSHi-->'."\n".$geshi->parse_code()."\n".'<!--end GeSHi-->'."\n";
 	}
 
 	/**
@@ -539,11 +694,11 @@ class Wakka
 	function CachePage($page) { $this->pageCache[$page["tag"]] = $page; }
 	function SetPage($page) { $this->page = $page; if ($this->page["tag"]) $this->tag = $this->page["tag"]; }
 	function LoadPageById($id) { return $this->LoadSingle("select * from ".$this->config["table_prefix"]."pages where id = '".mysql_real_escape_string($id)."' limit 1"); }
-	function LoadRevisions($page) { return $this->LoadAll("select * from ".$this->config["table_prefix"]."pages where tag = '".mysql_real_escape_string($page)."' order by time desc"); }
+	function LoadRevisions($page) { return $this->LoadAll("select * from ".$this->config["table_prefix"]."pages where tag = '".mysql_real_escape_string($page)."' order by id desc"); }
 	function LoadPagesLinkingTo($tag) { return $this->LoadAll("select from_tag as tag from ".$this->config["table_prefix"]."links where to_tag = '".mysql_real_escape_string($tag)."' order by tag"); }
 	function LoadRecentlyChanged()
 	{
-		if ($pages = $this->LoadAll("select * from ".$this->config["table_prefix"]."pages where latest = 'Y' order by time desc"))
+		if ($pages = $this->LoadAll("select * from ".$this->config["table_prefix"]."pages where latest = 'Y' order by id desc"))
 		{
 			foreach ($pages as $page)
 			{
@@ -605,7 +760,7 @@ class Wakka
 		return($data);
 	}
 	function FullCategoryTextSearch($phrase) { return $this->LoadAll("select * from ".$this->config["table_prefix"]."pages where latest = 'Y' and match(body) against('".mysql_real_escape_string($phrase)."' IN BOOLEAN MODE)"); }
-	function SavePage($tag, $body, $note)
+	function SavePage($tag, $body, $note, $owner=null)
 	{
 		// get current user
 		$user = $this->GetUserName();
@@ -613,16 +768,20 @@ class Wakka
 		// TODO: check write privilege
 		if ($this->HasAccess("write", $tag))
 		{
-			// is page new?
-			if (!$oldPage = $this->LoadPage($tag))
+			// If $owner is specified, don't do an owner check 
+			if(empty($owner))
 			{
-				// current user is owner if user is logged in, otherwise, no owner.
-				if ($this->GetUser()) $owner = $user;
-			}
-			else
-			{
-				// aha! page isn't new. keep owner!
-				$owner = $oldPage["owner"];
+				// is page new?
+				if (!$oldPage = $this->LoadPage($tag))
+				{
+					// current user is owner if user is logged in, otherwise, no owner.
+					if ($this->GetUser()) $owner = $user;
+				}
+				else
+				{
+					// aha! page isn't new. keep owner!
+					$owner = $oldPage["owner"];
+				}
 			}
 
 			// set all other revisions to old
@@ -631,12 +790,12 @@ class Wakka
 			// add new revision
 			$this->Query("insert into ".$this->config["table_prefix"]."pages set ".
 				"tag = '".mysql_real_escape_string($tag)."', ".
- 				"time = now(), ".
-  				"owner = '".mysql_real_escape_string($owner)."', ".
- 				"user = '".mysql_real_escape_string($user)."', ".
+				"time = now(), ".
+				"owner = '".mysql_real_escape_string($owner)."', ".
+				"user = '".mysql_real_escape_string($user)."', ".
 				"note = '".mysql_real_escape_string($note)."', ".
- 				"latest = 'Y', ".
- 				"body = '".mysql_real_escape_string($body)."'");
+				"latest = 'Y', ".
+				"body = '".mysql_real_escape_string($body)."'");
 
 			if ($pingdata = $this->GetPingParams($this->config["wikiping_server"], $tag, $user, $note))
 				$this->WikiPing($pingdata);
@@ -651,33 +810,6 @@ class Wakka
 		}
 		if ($title) return strip_tags($this->Format($title));				# fix for forced links in heading
 		else return $this->GetPageTag();
-	}
-	/**
-	 * Check by name if a page exists.
-	 *
-	 * @author		{@link http://wikkawiki.org/JavaWoman JavaWoman}
-	 * @copyright	Copyright © 2004, Marjolein Katsma
-	 * @license		http://www.gnu.org/copyleft/lesser.html GNU Lesser General Public License
-	 * @version		1.0
-	 *
-	 * @access		public
-	 * @uses		Query()
-	 *
-	 * @param		string  $page  page name to check
-	 * @return		boolean  TRUE if page exists, FALSE otherwise
-	 */
-	function ExistsPage($page)
-	{
-		$count = 0;
-		$query = 	"SELECT COUNT(tag)
-					FROM ".$this->config['table_prefix']."pages
-					WHERE tag='".mysql_real_escape_string($page)."'";
-		if ($r = $this->Query($query))
-		{
-			$count = mysql_result($r,0);
-			mysql_free_result($r);
-		}
-		return ($count > 0) ? TRUE : FALSE;
 	}
 
 	// WIKI PING  -- Coded by DreckFehler
@@ -749,7 +881,7 @@ class Wakka
 			$ping["server"] = $server;
 			if ($tag) $ping["tag"] = $tag; else return false; // set page-title
 			if (!$ping["taglink"] = $this->Href("", $tag)) return false; // set page-url
-            	if (!$ping["wiki"] = $this->config["wakka_name"]) return false; // set site-name
+				if (!$ping["wiki"] = $this->config["wakka_name"]) return false; // set site-name
 			$ping["history"] = $this->Href("revisions", $tag); // set url to history
 
 			if ($user) {
@@ -763,7 +895,7 @@ class Wakka
 
 	// COOKIES
 	function SetSessionCookie($name, $value) { SetCookie($name.$this->config['wiki_suffix'], $value, 0, "/"); $_COOKIE[$name.$this->config['wiki_suffix']] = $value; $this->cookies_sent = true; }
-	function SetPersistentCookie($name, $value) { SetCookie($name.$this->config['wiki_suffix'], $value, time() + 90 * 24 * 60 * 60, "/"); $_COOKIE[$name.$this->config['wiki_suffix']] = $value; $this->cookies_sent = true; }
+	function SetPersistentCookie($name, $value) { SetCookie($name.$this->config['wiki_suffix'], $value, time() + $this->cookie_expiry, "/"); $_COOKIE[$name.$this->config['wiki_suffix']] = $value; $this->cookies_sent = true; }
 	function DeleteCookie($name) { SetCookie($name.$this->config['wiki_suffix'], "", 1, "/"); $_COOKIE[$name.$this->config['wiki_suffix']] = ""; $this->cookies_sent = true; }
 	function GetCookie($name)
 	{
@@ -804,8 +936,8 @@ class Wakka
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head><title>Redirected to '.$this->Href($url).'</title>'.
 '<meta http-equiv="refresh" content="0; url=\''.$url.'\'" /></head><body><div><script type="text/javascript">window.location.href="'.$url.'";</script>'.
 '</div><noscript>If your browser does not redirect you, please follow <a href="'.$this->Href($url).'">this link</a></noscript></body></html>');
-		} 
-		else 
+		}
+		else
 		{
 			header("Location: ".$url);
 		}
@@ -824,17 +956,17 @@ class Wakka
 		return $href;
 	}
 	/**
-	 * Link 
-	 * 
-	 * Beware of the $title parameter: quotes and backslashes should be previously escaped before passed to 
+	 * Link
+	 *
+	 * Beware of the $title parameter: quotes and backslashes should be previously escaped before passed to
 	 * this method.
 	 *
-	 * @param mixed $tag 
-	 * @param string $method 
-	 * @param string $text 
-	 * @param boolean $track 
-	 * @param boolean $escapeText 
-	 * @param string $title 
+	 * @param mixed $tag
+	 * @param string $method
+	 * @param string $text
+	 * @param boolean $track
+	 * @param boolean $escapeText
+	 * @param string $title
 	 * @access public
 	 * @return string
 	 */
@@ -909,10 +1041,27 @@ class Wakka
 			}
 		}
 	}
-	function Header() { return $this->Action($this->config['header_action'], 0); }
-	function Footer() { return $this->Action($this->config['footer_action'], 0); }
+	function Header() {
+		$header = $this->IncludeBuffered('header.php', ERROR_HEADER_MISSING, '',  $this->GetConfigValue('wikka_template_path'));
+		return $header;
+	}
+	function Footer() {
+		$footer = $this->IncludeBuffered('footer.php', ERROR_FOOTER_MISSING, '', $this->GetConfigValue('wikka_template_path'));
+		return $footer;
+	}
 
 	// FORMS
+	/**
+	 * Open form.
+	 *
+	 * @uses	Wakka::GetConfigValue()
+	 *
+	 * @todo	replace with advanced FormOpen (so IDs are generated, among other things!)
+	 * @todo	check if the hidden field is still needed - Href() already provides
+	 *			the wakka= part of the URL... everything seems to work fine with
+	 *			or without rewrite mode, and without this hidden field!
+	 */
+	/* replaced by http://wikkawiki.org/AdvancedFormOpen
 	function FormOpen($method = "", $tag = "", $formMethod = "post", $enctype = '')
 	{
 		$result = '<form '.
@@ -926,9 +1075,134 @@ class Wakka
 
 		return $result;
 	}
+	*/
+	/**
+	 * Build an opening form tag with specified or generated attributes.
+	 *
+	 * This method builds an opening form tag, taking care that the result is valid XHTML
+	 * no matter where the parameters come from: invalid parameters are ignored and defaults used.
+	 * This enables this method to be used with user-provided parameter values.
+	 *
+	 * The form will always have the required action attribute and an id attribute to provide
+	 * a 'hook' for styling and scripting. This method tries its best to ensure the id attribute
+	 * is unique, among other things by adding a 'form_' prefix to make it different from ids for
+	 * other elements.
+	 * For a file upload form ($file=TRUE) the appropriate method and enctype attributes are generated.
+	 *
+	 * @author		{@link http://wikkawiki.org/JavaWoman JavaWoman} (Advanced version: complete rewrite; 2005)
+	 * @license		http://www.gnu.org/copyleft/lesser.html GNU Lesser General Public License
+	 *
+	 * @access	public
+	 * @uses	ID_LENGTH
+	 * @uses	Wakka::makeId()
+	 * @uses	Wakka::existsHandler()
+	 * @uses	Wakka::existsPage()
+	 * @uses	Wakka::Href()
+	 * @uses	Wakka::MiniHref()	only for hidden field
+	 *
+	 * @param	string	$handler	optional: "handler" which consists of handler name and possibly a query string
+	 *								to be used as part of action attribute
+	 * @param	string	$tag		optional: page name to be used for action attribute;
+	 *								if not specified, the current page will be used
+	 * @param	string	$formMethod	optional: method attribute; must be POST (default) or GET;
+	 *								anything but POST is ignored and considered as GET;
+	 *								always converted to lowercase
+	 * @param	string	$id			optional: id attribute
+	 * @param	string	$class		optional: class attribute
+	 * @param	boolean	$file		optional: specifies whether there will be a file upload field;
+	 *								default: FALSE; if TRUE sets method attribute to POST and generates
+	 *								appropriate enctype attribute
+	 * @return	string opening form tag
+	 * @todo	extend to handle a complete (external) URL instead of (handler+)pagename
+	 * @todo	extend to allow extra attributes
+	 */
+	function FormOpen($handler='', $tag='', $formMethod='post', $id='', $class='', $file=FALSE)
+	{
+		// init
+		$attrMethod = '';									// no method for HTML default 'get'
+		$attrClass = '';
+		$attrEnctype = '';									// default no enctype -> HTML default application/x-www-form-urlencoded
+		$hidden = array();
+		// derivations
+		$handler = trim($handler);
+		$tag = trim($tag);
+		$id = trim($id);
+		$class = trim($class);
+		// validations (needed only if parameters are actually specified)
+		if (!empty($handler) && !$this->existsHandler($handler))
+		{
+			$handler = '';
+		}
+		if (!empty($tag) && !$this->existsPage($tag))	// name change, interface change (check for active page only)
+		{
+			$tag = '';	// Href() will pick up current page name if none specified
+		}
+
+		// form action (action is a required attribute!)
+		// !!! If rewrite mode is off, "tag" has to be passed as a hidden field
+		// rather than part of the URL (where it gets ignored on submit!)
+		if ($this->GetConfigValue('rewrite_mode'))
+		{
+			// @@@ add passed extra GET params here by passing them as extra
+			// parameter to Href()
+			$attrAction = ' action="'.$this->Href($handler, $tag).'"';
+		}
+		else
+		{
+			$attrAction = ' action="'.$this->Href($handler, $tag).'"';
+			// #670: This value will short-circuit the value of wakka=... in URL.
+			$hidden['wakka'] = $this->MiniHref($handler, ('' == $tag ? $this->GetPageTag(): $tag));
+			// @@@ add passed extra GET params here by adding them as extra
+			// entries to $hidden (probably not by adding them to Href()
+			// but that needs to be tested when we get to it!)
+		}
+		// form method (ignore anything but post) and enctype
+		if (TRUE === $file)
+		{
+			$attrMethod  = ' method="post"';				// required for file upload
+			$attrEnctype = ' enctype="multipart/form-data"';// required for file upload
+		}
+		elseif (preg_match('/^post$/i',$formMethod))		// ignore case...
+		{
+			$attrMethod = ' method="post"';					// ...but generate lowercase
+		}
+		// form id
+		if ('' == $id)										// if no id given, generate one based on other parameters
+		{
+			$id = substr(md5($handler.$tag.$formMethod.$class),0,ID_LENGTH);
+		}
+		$attrId = ' id="'.$this->makeId('form',$id).'"';	// make sure we have a unique id
+		// form class
+		if ('' != $class)
+		{
+			$attrClass = ' class="'.$class.'"';
+		}
+
+		// build HTML fragment
+		$fragment = '<form'.$attrAction.$attrMethod.$attrEnctype.$attrId.$attrClass.'>'."\n";
+		// construct and add hidden fields (necessary if we are NOT using rewrite mode)
+		if (count($hidden) > 0)
+		{
+			$fragment .= '<fieldset class="hidden">'."\n";
+			foreach ($hidden as $name => $value)
+			{
+				$fragment .= '	<input type="hidden" name="'.$name.'" value="'.$value.'" />'."\n";
+			}
+			$fragment .= '</fieldset>'."\n";
+		}
+
+		// return resulting HTML fragment
+		return $fragment;
+	}
+	/**
+	 * Close form
+	 *
+	 * @return	string	the XHTML tag to close a form and a newline.
+	 */
 	function FormClose()
 	{
-		return "</form>\n";
+		$result = '</form>'."\n";
+		return $result;
 	}
 
 	// INTERWIKI STUFF
@@ -958,33 +1232,140 @@ class Wakka
 	}
 
 	// REFERRERS
-	function LogReferrer($tag = "", $referrer = "")
+	function LogReferrer($tag='', $referrer='')
 	{
 		// fill values
-		if (!$tag = trim($tag)) $tag = $this->GetPageTag();
-		if (!$referrer = trim($referrer)) $referrer = $_SERVER["HTTP_REFERER"];
-		$referrer = $this->cleanUrl($referrer);			# secured JW 2005-01-20
+		if (!$tag = trim($tag))
+		{
+			#$tag = $this->GetPageTag();
+			$tag = $this->tag;
+		}
+		#if (!$referrer = trim($referrer)) $referrer = $_SERVER["HTTP_REFERER"]; NOTICE
+		if (empty($referrer))
+		{
+			$referrer = (isset($_SERVER['HTTP_REFERER'])) ? $_SERVER['HTTP_REFERER'] : '';
+		}
+		$referrer = trim($this->cleanUrl($referrer));			# secured JW 2005-01-20
 
 		// check if it's coming from another site
-		if ($referrer && !preg_match("/^".preg_quote($this->GetConfigValue("base_url"), "/")."/", $referrer))
+		#if ($referrer && !preg_match('/^'.preg_quote($this->GetConfigValue('base_url'), '/').'/', $referrer))
+		if (!empty($referrer) && !preg_match('/^'.preg_quote($this->GetConfigValue('base_url'), '/').'/', $referrer))
 		{
 			$parsed_url = parse_url($referrer);
-			$spammer = $parsed_url["host"];
-			$blacklist = $this->LoadSingle("select * from ".$this->config["table_prefix"]."referrer_blacklist WHERE spammer = '".mysql_real_escape_string($spammer)."'");
-			if (!$blacklist) {
-			$this->Query("insert into ".$this->config["table_prefix"]."referrers set ".
-				"page_tag = '".mysql_real_escape_string($tag)."', ".
-				"referrer = '".mysql_real_escape_string($referrer)."', ".
-				"time = now()");
+			$spammer = $parsed_url['host'];
+			$blacklist = $this->LoadSingle("
+				SELECT *
+				FROM ".$this->GetConfigValue('table_prefix')."referrer_blacklist
+				WHERE spammer = '".mysql_real_escape_string($spammer)."'"
+				);
+			if (FALSE === $blacklist)
+			{
+				$this->Query("
+					INSERT INTO ".$this->GetConfigValue('table_prefix')."referrers
+					SET page_tag	= '".mysql_real_escape_string($tag)."',
+						referrer	= '".mysql_real_escape_string($referrer)."',
+						time		= now()"
+					);
 			}
 		}
 	}
 	function LoadReferrers($tag = "")
 	{
-		return $this->LoadAll("select referrer, count(referrer) as num from ".$this->config["table_prefix"]."referrers ".($tag = trim($tag) ? "where page_tag = '".mysql_real_escape_string($tag)."'" : "")." group by referrer order by num desc");
+		$where = ($tag = trim($tag)) ? "			WHERE page_tag = '".mysql_real_escape_string($tag)."'" : '';
+		$referrers = $this->LoadAll("
+			SELECT referrer, COUNT(referrer) AS num
+			FROM ".$this->GetConfigValue('table_prefix')."referrers".
+			$where."
+			GROUP BY referrer
+			ORDER BY num DESC"
+			);
+		return $referrers;
+	}
+
+	// SANITY CHECKS
+
+	/**
+	 * Check by name if a page exists.
+	 *
+	 * @author		{@link http://wikkawiki.org/JavaWoman JavaWoman}
+	 * @copyright	Copyright © 2004, Marjolein Katsma
+	 * @license		http://www.gnu.org/copyleft/lesser.html GNU Lesser General Public License
+	 * @version		1.1
+	 *
+	 * NOTE: v. 1.0 -> 1.1
+	 *		- name changed from ExistsPage() to existsPage() !!!
+	 *		- added $prefix param so it can be used from installer
+	 *		- added $current param so it checks by default for a current page only
+	 *
+	 * @access	public
+	 * @uses	Query()
+	 *
+	 * @param	string	$page  page name to check
+	 * @param	string	$prefix	optional: table prefix to use
+	 *					pass NULL if you need to override the $active parameter
+	 *					default: prefix as in configuration file
+	 * @param	mixed	$dblink	optional: connection resource, or NULL to get
+	 *					object's connection
+	 * @param	string	$active	optional: if TRUE, check for actgive page only
+	 *					default: TRUE
+	 * @return	boolean	TRUE if page exists, FALSE otherwise
+	 */
+	function existsPage($page, $prefix='', $dblink=NULL, $active=TRUE)
+	{
+		// init
+		$count = 0;
+		$table_prefix = (empty($prefix)) ? $this->config['table_prefix'] : $prefix;
+		if (is_null($dblink))
+		{
+			$dblink = $this->dblink;
+		}
+		// build query
+		$query = "SELECT COUNT(tag)
+				FROM ".$table_prefix."pages
+				WHERE tag='".mysql_real_escape_string($page)."'";
+		if ($active)
+		{
+			$query .= "		AND latest='Y'";
+		}
+		// do query
+		if ($r = Wakka::Query($query, $dblink))
+		{
+			$count = mysql_result($r,0);
+			mysql_free_result($r);
+		}
+		// report
+		return ($count > 0) ? TRUE : FALSE;
+	}
+	/**
+	 * Check if a handler (specified after page name) really exists.
+	 *
+	 * May be passed as handler plus query string; we'll need to look at handler only
+	 * so we strip off any querystring first.
+	 *
+	 * @author		{@link http://wikkawiki.org/JavaWoman JavaWoman} (created 2005; rewrite 2007)
+	 * @license		http://www.gnu.org/copyleft/lesser.html GNU Lesser General Public License
+	 *
+	 * @access	public
+	 * @uses	Wakka::GetConfigValue()
+	 *
+	 * @param	string 	$handler	handler name, optionally with appended parameters
+	 * @return	boolean	TRUE if handler is found, FALSE otherwise
+	 */
+	function existsHandler($handler)
+	{
+		// first strip off any query string
+		$parts = preg_split('/&/',$handler,1);				# return only one part
+		$handler = $parts[0];
+#echo 'handler: '.$handler.'<br/>';
+		// now check if a handler by that name exists
+#echo 'checking path: '.$this->GetConfigValue('handler_path').DIRECTORY_SEPARATOR.'page'.DIRECTORY_SEPARATOR.$handler.'.php'.'<br/>';
+		$exists = file_exists($this->GetConfigValue('handler_path').DIRECTORY_SEPARATOR.'page'.DIRECTORY_SEPARATOR.$handler.'.php');
+		// return conclusion
+		return $exists;
 	}
 
 	// PLUGINS
+
 	function Action($actionspec, $forceLinkTracking = 0)
 	{
 		// parse action spec and check if we have a syntactically valid action name	[SEC]
@@ -998,9 +1379,11 @@ class Wakka
 		{
 			// valid action name, so we pull out the parts
 			$action_name	= strtolower($matches[1]);
-			$paramlist		= trim($matches[2]);
+			$paramlist		= (isset($matches[2])) ? trim($matches[2]) : '';
 		}
 
+		// prepare an array for extract() (in $this->IncludeBuffered()) to work with
+		$vars = array();
 		// search for parameters if there was more than just a (syntactically valid) action name
 		if ('' != $paramlist)
 		{
@@ -1008,15 +1391,15 @@ class Wakka
 			preg_match_all('/([a-zA-Z0-9]+)=(\"|\')(.*)\\2/U', $paramlist, $matches);	# [SEC] parameter name should not be empty
 
 			// prepare an array for extract() (in $this->IncludeBuffered()) to work with
-			$vars = array();
-			if (is_array($matches)) 
+			#$vars = array();
+			if (is_array($matches))
 			{
-				for ($a = 0; $a < count($matches[0]); $a++) 
+				for ($a = 0; $a < count($matches[0]); $a++)
 				{
 					// parameter value is sanitized using htmlspecialchars_ent(); if an
 					// action really needs "raw" HTML as input it can still be "unescaped"by the action
 					// itself; for any other action this guards against XSS or directory traversal
-					// via user-supplied action parameters. Any HTML will be displayed _as code_, 
+					// via user-supplied action parameters. Any HTML will be displayed _as code_,
 					// but not interpreted.
 					$vars[$matches[1][$a]] = $this->htmlspecialchars_ent($matches[3][$a]);	// parameter name = sanitized value [SEC]
 				}
@@ -1025,7 +1408,7 @@ class Wakka
 		}
 		if (!$forceLinkTracking) $this->StopLinkTracking();
 
-		$result = $this->IncludeBuffered($action_name.'.php', '<!-- <wiki-error>unknown action</wiki-error> --><em class="error">Unknown action "'.$action_name.'"</em>', $vars, $this->config['action_path']);
+		$result = $this->IncludeBuffered($action_name.'.php', 'Unknown action "'.$action_name.'"', $vars, $this->config['action_path']);
 		$this->StartLinkTracking();
 		return $result;
 	}
@@ -1033,12 +1416,12 @@ class Wakka
 	{
 		if (strstr($method, '/'))
 		{
-			# Observations - MK 2007-03-30 
+			# Observations - MK 2007-03-30
 			# extract part after the last slash (if the whole request contained multiple slashes)
 			# TODO:
 			# but should such requests be accepted in the first place?
 			# at least it is a SORT of defense against directory traversal (but not necessarily XSS)
-			# NOTE that name syntax check now takes care of XSS 
+			# NOTE that name syntax check now takes care of XSS
 			$method = substr($method, strrpos($method, '/')+1);
 		}
 		// check valid method name syntax (similar to Action())
@@ -1053,21 +1436,21 @@ class Wakka
 		}
 		if (!$handler = $this->page['handler']) $handler = 'page';	# there are no other handlers (yet)
 		$methodLocation = $handler.DIRECTORY_SEPARATOR.$method.'.php';	#89
-		return $this->IncludeBuffered($methodLocation, '<!-- <wiki-error>unknown method</wiki-error> --><em class="error">Unknown method "'.$methodLocation.'"</em>', '', $this->config['handler_path']);
+		return $this->IncludeBuffered($methodLocation, 'Unknown method "'.$methodLocation.'"', '', $this->config['handler_path']);
 	}
-	function Format($text, $formatter='wakka') 
-	{ 
+	function Format($text, $formatter='wakka')
+	{
 		// check valid formatter name syntax (similar to Action())
 		if (!preg_match('/^([a-zA-Z0-9_.-]+)$/', $formatter)) // allow letters, numbers, underscores, dashes and dots only (for now); see also #34
 		{
-			return '<em class="error">Unknown formatter; the formatter name must not contain special characters.</em>';	# [SEC]			
+			return '<em class="error">Unknown formatter; the formatter name must not contain special characters.</em>';	# [SEC]
 		}
 		else
 		{
 			// valid method name; now make sure it's lower case
 			$formatter	= strtolower($formatter);
 		}
-		return $this->IncludeBuffered($formatter.'.php', '<em class="error">Formatter "'.$formatter.'" not found</em>', compact("text"), $this->config['wikka_formatter_path']); 
+		return $this->IncludeBuffered($formatter.'.php', 'Formatter "'.$formatter.'" not found', compact("text"), $this->config['wikka_formatter_path']);
 	}
 
 	// USERS
@@ -1076,7 +1459,19 @@ class Wakka
 	function GetUserName() { if ($user = $this->GetUser()) $name = $user["name"]; else if (!$name = gethostbyaddr($_SERVER["REMOTE_ADDR"])) $name = $_SERVER["REMOTE_ADDR"]; return $name; }
 	function GetUser() { return (isset($_SESSION["user"])) ? $_SESSION["user"] : NULL; }
 	function SetUser($user) { $_SESSION["user"] = $user; $this->SetPersistentCookie("user_name", $user["name"]); $this->SetPersistentCookie("pass", $user["password"]); }
-	function LogoutUser() { $_SESSION["user"] = ""; $this->DeleteCookie("user_name"); $this->DeleteCookie("pass"); }
+	function LogoutUser() 
+	{ 
+		$this->DeleteCookie("user_name"); 
+		$this->DeleteCookie("pass"); 
+		// Delete this session from sessions table
+		$this->Query("DELETE FROM ".$this->config['table_prefix']."sessions WHERE userid='".$this->GetUserName()."' AND sessionid='".session_id()."'");
+		$_SESSION["user"] = ""; 
+		// This seems a good as place as any to purge all session records
+		// older than PERSISTENT_COOKIE_EXPIRY, as this is not a
+		// time-critical function for the user.  The assumption here
+		// is that  server-side sessions have long ago been cleaned up by PHP.
+		$this->Query("DELETE FROM ".$this->config['table_prefix']."sessions WHERE DATE_SUB(NOW(), INTERVAL ".PERSISTENT_COOKIE_EXPIRY." SECOND) > session_start");
+	}
 	function UserWantsComments() { if (!$user = $this->GetUser()) return false; return ($user["show_comments"] == "Y"); }
 
 
@@ -1094,22 +1489,41 @@ class Wakka
 	 *
 	 * @uses	Wakka::LoadAll()
 	 * @param	integer $limit optional: number of last comments. default: 50
+	 * @param   string $user optional: list only comments by this user
 	 * @return	array the last x comments
 	 */
-	function LoadRecentComments($limit = 50) { return $this->LoadAll("SELECT * FROM ".$this->config["table_prefix"]."comments ORDER BY time DESC LIMIT ".intval($limit)); }
+	function LoadRecentComments($limit = 50, $user = '') 
+	{ 
+		$where = '';
+		if(!empty($user) && 
+		   ($user == $this->GetUser() || $this->IsAdmin()))
+		{
+			$where = " where user = '".mysql_real_escape_string($user)."' ";
+		}
+		return $this->LoadAll("SELECT * FROM ".$this->config["table_prefix"]."comments $where ORDER BY time DESC LIMIT ".intval($limit)); 
+	}
 	/**
 	 * Load the last 50 comments on different pages on the wiki.
 	 *
 	 * @uses	Wakka::LoadAll()
 	 * @param	integer $limit optional: number of last comments on different pages. default: 50
+	 * @param   string $user optional: list only comments by this user
 	 * @return	array the last x comments on different pages
 	 */
-	function LoadRecentlyCommented($limit = 50)
+	function LoadRecentlyCommented($limit = 50, $user = '')
 	{
+		$where = ' and 1 ';
+		if(!empty($user) && 
+		   ($user == $this->GetUser() || $this->IsAdmin()))
+		{
+			$where = " and comments.user = '".mysql_real_escape_string($user)."' ";
+		}
+
 		$sql = "SELECT comments.id, comments.page_tag, comments.time, comments.comment, comments.user"
 			. " FROM ".$this->config["table_prefix"]."comments AS comments"
 			. " LEFT JOIN ".$this->config["table_prefix"]."comments AS c2 ON comments.page_tag = c2.page_tag AND comments.id < c2.id"
 			. " WHERE c2.page_tag IS NULL "
+			. $where
 			. " ORDER BY time DESC "
 			. " LIMIT ".intval($limit);
 		return $this->LoadAll($sql);
@@ -1136,22 +1550,22 @@ class Wakka
 	}
 
 	// ACCESS CONTROL
-	/** 
-	 * Check if current user is the owner of the current or a specified page. 
-	 *  
+	/**
+	 * Check if current user is the owner of the current or a specified page.
+	 *
 	 * @access		public
 	 * @uses		Wakka::GetPageOwner()
-	 * @uses		Wakka::GetPageTag() 
+	 * @uses		Wakka::GetPageTag()
 	 * @uses		Wakka::GetUser()
 	 * @uses		Wakka::GetUserName()
 	 * @uses		Wakka::IsAdmin()
-	 * 
-	 * @param		string  $tag optional: page to be checked. Default: current page. 
-	 * @return		boolean TRUE if the user is the owner, FALSE otherwise. 
-	 */ 
+	 *
+	 * @param		string  $tag optional: page to be checked. Default: current page.
+	 * @return		boolean TRUE if the user is the owner, FALSE otherwise.
+	 */
 	function UserIsOwner($tag = "")
 	{
-		// if not logged in, user can't be owner! 
+		// if not logged in, user can't be owner!
 		if (!$this->GetUser()) return false;
 
 		// if user is admin, return true. Admin can do anything!
@@ -1163,12 +1577,20 @@ class Wakka
 		return ($this->GetPageOwner($tag) == $this->GetUserName());
 	}
 	//returns true if user is listed in configuration list as admin
-	function IsAdmin() {
+	function IsAdmin($user='') {
 		$adminstring = $this->config["admin_users"];
 		$adminarray = explode(',' , $adminstring);
 
+		if(TRUE===empty($user))
+		{
+			$user = $this->GetUserName();
+		}
+		else if(is_array($user))
+		{
+			$user = $user['name'];
+		}
 		foreach ($adminarray as $admin) {
-			if (trim($admin) == $this->GetUserName()) return true;
+			if (trim($admin) == $user) return true;
 		}
 	}
 	function GetPageOwner($tag = "", $time = "") { if (!$tag = trim($tag)) $tag = $this->GetPageTag(); if ($page = $this->LoadPage($tag, $time)) return $page["owner"]; }
@@ -1298,10 +1720,10 @@ class Wakka
 		if (!$this->method = trim($method)) $this->method = "show";
 		if (!$this->tag = trim($tag)) $this->Redirect($this->Href("", $this->config["root_page"]));
 		if (!$this->GetUser() && ($user = $this->LoadUser($this->GetCookie('user_name'), $this->GetCookie('pass')))) $this->SetUser($user);
-		if ((!$this->GetUser() && isset($_COOKIE["wikka_user_name"])) && ($user = $this->LoadUser($_COOKIE["wikka_user_name"], $_COOKIE["wikka_pass"]))) 
+		if ((!$this->GetUser() && isset($_COOKIE["wikka_user_name"])) && ($user = $this->LoadUser($_COOKIE["wikka_user_name"], $_COOKIE["wikka_pass"])))
 		{
-		 //Old cookies : delete them
-			SetCookie('wikka_user_name', "", 1, "/"); 
+			//Old cookies : delete them
+			SetCookie('wikka_user_name', "", 1, "/");
 			$_COOKIE['wikka_user_name'] = "";
 			SetCookie('wikka_pass', '', 1, '/');
 			$_COOKIE['wikka_pass'] = "";
@@ -1372,7 +1794,8 @@ class Wakka
     	
     	while( $file = readdir( $dir ) ) 
     	{
-	        if( $file == '.' || $file == '..' ) 
+		// Ignore any files beginning with '.', including '.' and '..'
+		if (preg_match('/^\\./', $file))
 	        	continue;
 	        	
 			++$num;
@@ -1445,7 +1868,7 @@ class Wakka
 		// upload form
     	if( $max_upload_size > 0 )
     	{
-    		echo $this->FormOpen( '', '', 'post', 'multipart/form-data' );
+			echo $this->FormOpen( '', '', 'post', '', '', TRUE );
 
         	print  '<tr>
 				<td>&nbsp;</td>
@@ -1534,5 +1957,5 @@ class Wakka
 			break;
 		}
 	}
-} 
+}
 ?>

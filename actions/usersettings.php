@@ -10,13 +10,27 @@
  * @author		{@link http://wikkawiki.org/MinusF MinusF} (code cleanup and validation)
  * @author		{@link http://wikkawiki.org/DarTar Dario Taraborelli} (further cleanup, i18n, replaced JS dialogs with server-generated messages)
  *
+ * @uses		Wakka::LogoutUser()
+ * @uses		Wakka::Redirect()
+ * @uses		Wakka::Getuser()
+ * @uses		Wakka::GetSafeVar()
+ * @uses		Wakka::Query()
+ * @uses		Wakka::SetUser()
+ * @uses		Wakka::LoadUser()
+ * @uses		Wakka::FormOpen()
+ * @uses		Wakka::FormClose()
+ * @uses		Wakka::Link()
+ * @uses		Wakka::Format()			to be avoided
  * @uses		Wakka::htmlspecialchars_ent()
- * 
+ * @uses		Wakka::IsWikiName()
+ * @uses		Wakka::existsPage()
+ *
  * @todo		use different actions for registration / login / user settings;
  * @todo		add documentation links or short explanations for each option;
  * @todo		use error handler for displaying messages and highlighting
  * 				invalid input fields;
  * @todo		remove useless redirections;
+ * @todo		avoid use of Format() (too costly for just headings and erro rstrings)
  * @todo		[accessibility] make logout independent of JavaScript
  */
 
@@ -56,6 +70,8 @@ if (!defined('ERROR_WRONG_PASSWORD')) define('ERROR_WRONG_PASSWORD', "Sorry, you
 if (!defined('ERROR_WRONG_HASH')) define('ERROR_WRONG_HASH', "Sorry, you entered a wrong password reminder.");
 if (!defined('ERROR_EMPTY_USERNAME')) define('ERROR_EMPTY_USERNAME', "Please fill in your user name.");
 if (!defined('ERROR_NON_EXISTENT_USERNAME')) define('ERROR_NON_EXISTENT_USERNAME', "Sorry, this user name doesn't exist.");
+if (!defined('ERROR_USERNAME_EXISTS')) define('ERROR_USERNAME_EXISTS', "Sorry, this user name already exists.");
+if (!defined('ERROR_USER_SUSPENDED')) define('ERROR_USER_SUSPENDED', "Sorry, this account has been suspended. Please contact an administrator for further details.");
 if (!defined('ERROR_RESERVED_PAGENAME')) define('ERROR_RESERVED_PAGENAME', "Sorry, this name is reserved for a page. Please choose a different name.");
 if (!defined('ERROR_WIKINAME')) define('ERROR_WIKINAME', "Username must be formatted as a ##\"\"WikiName\"\"##, e.g. ##\"\"JohnDoe\"\"##.");
 if (!defined('ERROR_EMPTY_PASSWORD')) define('ERROR_EMPTY_PASSWORD', "Please fill in a password.");
@@ -68,14 +84,16 @@ if (!defined('ERROR_EMAIL_ADDRESS_REQUIRED')) define('ERROR_EMAIL_ADDRESS_REQUIR
 if (!defined('ERROR_INVALID_EMAIL_ADDRESS')) define('ERROR_INVALID_EMAIL_ADDRESS', "That doesn't quite look like an email address.");
 if (!defined('ERROR_INVALID_REVISION_DISPLAY_LIMIT')) define('ERROR_INVALID_REVISION_DISPLAY_LIMIT', "The number of page revisions should not exceed %d.");
 if (!defined('ERROR_INVALID_RECENTCHANGES_DISPLAY_LIMIT')) define('ERROR_INVALID_RECENTCHANGES_DISPLAY_LIMIT', "The number of recently changed pages should not exceed %d.");
+if(!defined('ERROR_VALIDATION_FAILED')) define('ERROR_VALIDATION_FAILED', "Registration validation failed, please try again!");
 if (!defined('REGISTRATION_SUCCEEDED')) define('REGISTRATION_SUCCEEDED', "You have successfully registered!");
 if (!defined('REGISTERED_USER_LOGIN_LABEL')) define('REGISTERED_USER_LOGIN_LABEL', "If you're already a registered user, log in here!");
-if (!defined('REGISTER_HEADING')) define('REGISTER_HEADING', "===Login/Register===");
+if (!defined('LOGIN_HEADING')) define('LOGIN_HEADING', "===Login===");
+if (!defined('LOGIN_REGISTER_HEADING')) define('LOGIN_REGISTER_HEADING', "===Login/Register===");
 if (!defined('WIKINAME_LABEL')) define('WIKINAME_LABEL', "Your <abbr title=\"A WikiName is formed by two or more capitalized words without space, e.g. JohnDoe\">WikiName</abbr>:");
 if (!defined('PASSWORD_LABEL')) define('PASSWORD_LABEL', "Password (%s+ chars):");
 if (!defined('LOGIN_BUTTON_LABEL')) define('LOGIN_BUTTON_LABEL', "Login");
 if (!defined('LOGOUT_BUTTON_LABEL')) define('LOGOUT_BUTTON_LABEL', "Logout");
-if (!defined('NEW_USER_REGISTER_LABEL')) define('NEW_USER_REGISTER_LABEL', "Stuff you only need to fill in when you're logging in for the first time (and thus signing up as a new user on this site).");
+if (!defined('NEW_USER_REGISTER_LABEL')) define('NEW_USER_REGISTER_LABEL', "Fields you only need to fill in when you're logging in for the first time (and thus signing up as a new user on this site).");
 if (!defined('CONFIRM_PASSWORD_LABEL')) define('CONFIRM_PASSWORD_LABEL', "Confirm password:");
 if (!defined('RETRIEVE_PASSWORD_HEADING')) define('RETRIEVE_PASSWORD_HEADING', "===Forgot your password?===");
 if (!defined('RETRIEVE_PASSWORD_MESSAGE')) define('RETRIEVE_PASSWORD_MESSAGE', "If you need a password reminder, click [[PasswordForgotten here]]. --- You can login here using your password reminder.");
@@ -105,6 +123,10 @@ $password_new_highlight = '';
 $password_confirm_highlight = '';
 $revisioncount_highlight = '';
 $changescount_highlight = '';
+
+// Create URAuth object
+include_once('libs/userregistration.class.php');
+$urobj = new URAuth($this);
 
 //create URL
 $url = $this->config['base_url'].$this->tag;
@@ -165,14 +187,14 @@ else if ($user = $this->GetUser())
 					"changescount = '".mysql_real_escape_string($changescount)."' ".
 					"WHERE name = '".$user['name']."' LIMIT 1");
 				$this->SetUser($this->LoadUser($user["name"]));
-			
+
 				// forward
 				$params .= 'stored=true';
 				$this->Redirect($url.$params);
 		}
 	}
 	//user just logged in
-	else 
+	else
 	{
 		// get stored settings
 		$email = $user['email'];
@@ -214,7 +236,7 @@ else if ($user = $this->GetUser())
 			echo '<!-- <wiki-error>invalid username or pwd</wiki-error> --><tr><td></td><td><em class="error">'.$this->Format($error).'</em></td></tr>'."\n";
 			break;
 		case (isset($success)):
-			echo '<tr><td></td><td><em class="success">'.$this->Format($success).'</em></td></tr>'."\n";		
+			echo '<tr><td></td><td><em class="success">'.$this->Format($success).'</em></td></tr>'."\n";
 			break;
 		default:
 	}
@@ -242,11 +264,11 @@ else if ($user = $this->GetUser())
 		<tr>
 			<td>&nbsp;</td>
 			<td><input type="submit" value="<?php echo UPDATE_SETTINGS_INPUT ?>" /><!-- <input type="button" value="<?php echo LOGOUT_BUTTON_LABEL; ?>" onclick="document.location='<?php echo $this->href('', '', 'action=logout'); ?>'" /></td>-->
-				<input id="logout" name="logout" type="submit" value="<?php echo LOGOUT_BUTTON_LABEL; ?>" /><!--#353,#312-->
+				<input id="logout" name="logout" type="submit" value="<?php echo LOGOUT_BUTTON_LABEL; ?>" />
 			</td>
 		</tr>
 	</table>
-<?php	
+<?php
 	echo $this->FormClose(); //close user settings form
 
 	if (isset($_POST['action']) && ($_POST['action'] == 'changepass'))
@@ -256,7 +278,7 @@ else if ($user = $this->GetUser())
 		$password = $_POST['password'];
 		$password_confirm = $_POST['password_confirm'];
 		$update_option = $this->GetSafeVar('update_option', 'post');
-		
+
 		switch (TRUE)
 		{
 			case (strlen($oldpass) == 0):
@@ -266,38 +288,38 @@ else if ($user = $this->GetUser())
 			case (($update_option == 'pw') && md5($oldpass) != $user['password']): //wrong password
 				$passerror = ERROR_WRONG_PASSWORD;
 				$pw_selected = 'selected="selected"';
-				$password_highlight = INPUT_ERROR_STYLE;			
+				$password_highlight = INPUT_ERROR_STYLE;
 				break;
 			case (($update_option == 'hash') && $oldpass != $user['password']): //wrong hash
 				$passerror = ERROR_WRONG_HASH;
 				$hash_selected = 'selected="selected"';
-				$password_highlight = INPUT_ERROR_STYLE;			
+				$password_highlight = INPUT_ERROR_STYLE;
 				break;
 			case (strlen($password) == 0):
 				$passerror = ERROR_EMPTY_NEW_PASSWORD;
-				$password_highlight = INPUT_ERROR_STYLE;			
+				$password_highlight = INPUT_ERROR_STYLE;
 				$password_new_highlight = INPUT_ERROR_STYLE;
 				break;
 			case (preg_match("/ /", $password)):
 				$passerror = ERROR_NO_BLANK;
-				$password_highlight = INPUT_ERROR_STYLE;			
+				$password_highlight = INPUT_ERROR_STYLE;
 				$password_new_highlight = INPUT_ERROR_STYLE;
 				break;
 			case (strlen($password) < PASSWORD_MIN_LENGTH):
 				$passerror = sprintf(ERROR_PASSWORD_TOO_SHORT, PASSWORD_MIN_LENGTH);
-				$password_highlight = INPUT_ERROR_STYLE;			
+				$password_highlight = INPUT_ERROR_STYLE;
 				$password_new_highlight = INPUT_ERROR_STYLE;
 				break;
 			case (strlen($password_confirm) == 0):
 				$passerror = ERROR_EMPTY_NEW_CONFIRMATION_PASSWORD;
-				$password_highlight = INPUT_ERROR_STYLE;			
+				$password_highlight = INPUT_ERROR_STYLE;
 				$password_new_highlight = INPUT_ERROR_STYLE;
 				$password_confirm_highlight = INPUT_ERROR_STYLE;
 				break;
 			case ($password_confirm != $password):
 				$passerror = ERROR_PASSWORD_MATCH;
 				$password_highlight = INPUT_ERROR_STYLE;
-				$password_new_highlight = INPUT_ERROR_STYLE;			
+				$password_new_highlight = INPUT_ERROR_STYLE;
 				$password_confirm_highlight = INPUT_ERROR_STYLE;
 				break;
 			default:
@@ -350,7 +372,7 @@ else if ($user = $this->GetUser())
 	print($this->FormClose());
 }
 // user is not logged in
-else 
+else
 {
 	// print confirmation message on successful logout
 	if (isset($_GET['out']) && ($_GET['out'] == 'true'))
@@ -358,14 +380,21 @@ else
 		$success = USER_LOGGED_OUT;
 	}
 
-	// is user trying to log in or register?
-	if (isset($_POST['action']) && ($_POST['action'] == 'login'))
+	$register = $this->GetConfigValue('allow_user_registration');
+	// Login request
+	if (isset($_POST['submit']) && ($_POST['submit'] == LOGIN_BUTTON_LABEL))
 	{
 		// if user name already exists, check password
 		if (isset($_POST['name']) && $existingUser = $this->LoadUser($_POST['name']))
 		{
 			// check password
+			$status = $existingUser['status'];
 			switch(TRUE){
+				case ($status=='deleted' ||
+			          $status=='suspended' ||
+					  $status=='banned'):
+					$error = ERROR_USER_SUSPENDED;
+					break;
 				case (strlen($_POST['password']) == 0):
 					$error = ERROR_EMPTY_PASSWORD;
 					$password_highlight = INPUT_ERROR_STYLE;
@@ -379,93 +408,106 @@ else
 					$this->Redirect($url, '');
 			}
 		}
-		// BEGIN *** Register ***
-		else // otherwise, proceed to registration
+		else
 		{
-			$name = trim($_POST['name']);
-			$email = trim($this->GetSafeVar('email', 'post'));
-			$password = $_POST['password'];
-			$confpassword = $_POST['confpassword'];
+			$error = ERROR_NON_EXISTENT_USERNAME;
+			$username_highlight = INPUT_ERROR_STYLE;
+		}
+	}
 
-			// validate input
-			switch(TRUE)
-			{
-				case (isset( $this->config["accept_new_users"] ) && ($this->config["accept_new_users"] == '0')):
-					$error = ERROR_FBWIKI_REGISTRATION_DISABLED;
-					$username_highlight = INPUT_ERROR_STYLE;
-					break;
-				case (strlen($name) == 0):
-					$error = ERROR_EMPTY_USERNAME;
-					$username_highlight = INPUT_ERROR_STYLE;
-					break;
-				case (!$this->IsWikiName($name)):
-					$error = ERROR_WIKINAME;
-					$username_highlight = INPUT_ERROR_STYLE;
-					break;
-				case ($this->ExistsPage($name)):
-					$error = ERROR_RESERVED_PAGENAME;
-					$username_highlight = INPUT_ERROR_STYLE;
-					break;
-				case (strlen($password) == 0):
-					$error = ERROR_EMPTY_PASSWORD;
-					$password_highlight = INPUT_ERROR_STYLE;
-					break;
-				case (preg_match("/ /", $password)):
-					$error = ERROR_NO_BLANK;
-					$password_highlight = INPUT_ERROR_STYLE;
-					break;
-				case (strlen($password) < PASSWORD_MIN_LENGTH):
-					$error = sprintf(ERROR_PASSWORD_TOO_SHORT, PASSWORD_MIN_LENGTH);
-					$password_highlight = INPUT_ERROR_STYLE;
-					break;
-				case (strlen($confpassword) == 0):
-					$error = ERROR_EMPTY_CONFIRMATION_PASSWORD;
-					$password_highlight = INPUT_ERROR_STYLE;
-					$password_confirm_highlight = INPUT_ERROR_STYLE;
-					break;
-				case ($confpassword != $password):
-					$error = ERROR_PASSWORD_MATCH;
-					$password_highlight = INPUT_ERROR_STYLE;
-					$password_confirm_highlight = INPUT_ERROR_STYLE;
-					break;
-				case (strlen($email) == 0):
-					$error = ERROR_EMAIL_ADDRESS_REQUIRED;
-					$email_highlight = INPUT_ERROR_STYLE;
-					$password_highlight = INPUT_ERROR_STYLE;
-					$password_confirm_highlight = INPUT_ERROR_STYLE;
-					break;
-				case (!preg_match(VALID_EMAIL_PATTERN, $email)):
-					$error = ERROR_INVALID_EMAIL_ADDRESS;
-					$email_highlight = INPUT_ERROR_STYLE;
-					$password_highlight = INPUT_ERROR_STYLE;
-					$password_confirm_highlight = INPUT_ERROR_STYLE;
-					break;
-				default: //valid input, create user
-					$this->Query("INSERT INTO ".$this->config['table_prefix']."users SET ".
-						"signuptime = now(), ".
-						"name = '".mysql_real_escape_string($name)."', ".
-						"email = '".mysql_real_escape_string($email)."', ".
-						"password = md5('".mysql_real_escape_string($_POST['password'])."')");
+	// Registration request
+	if (isset($_POST['submit']) && ($_POST['submit'] == REGISTER_BUTTON_LABEL) && $register == '1')
+	{
+		$name = trim($_POST['name']);
+		$email = trim($this->GetSafeVar('email', 'post'));
+		$password = $_POST['password'];
+		$confpassword = $_POST['confpassword'];
 
-					// log in
-					$this->SetUser($this->LoadUser($name));
-					$params .= 'registered=true';
-					$this->Redirect($url.$params);
-			}
+		// validate input
+		switch(TRUE)
+		{
+			case (FALSE===$urobj->URAuthVerify()):
+				$error = ERROR_VALIDATION_FAILED;
+				break;
+			case (isset($_POST['name']) && $existingUser = $this->LoadUser($_POST['name'])):
+				$error = ERROR_USERNAME_EXISTS;
+				$username_highlight = INPUT_ERROR_STYLE;
+				break;
+			case (isset( $this->config["accept_new_users"] ) && ($this->config["accept_new_users"] == '0')):
+				$error = ERROR_FBWIKI_REGISTRATION_DISABLED;
+				$username_highlight = INPUT_ERROR_STYLE;
+				break;
+			case (strlen($name) == 0):
+				$error = ERROR_EMPTY_USERNAME;
+				$username_highlight = INPUT_ERROR_STYLE;
+				break;
+			case (!$this->IsWikiName($name)):
+				$error = ERROR_WIKINAME;
+				$username_highlight = INPUT_ERROR_STYLE;
+				break;
+			case ($this->existsPage($name,NULL,NULL,FALSE)):	// name change, new interface (check for non-active page, too)
+				$error = ERROR_RESERVED_PAGENAME;
+				$username_highlight = INPUT_ERROR_STYLE;
+				break;
+			case (strlen($password) == 0):
+				$error = ERROR_EMPTY_PASSWORD;
+				$password_highlight = INPUT_ERROR_STYLE;
+				break;
+			case (preg_match("/ /", $password)):
+				$error = ERROR_NO_BLANK;
+				$password_highlight = INPUT_ERROR_STYLE;
+				break;
+			case (strlen($password) < PASSWORD_MIN_LENGTH):
+				$error = sprintf(ERROR_PASSWORD_TOO_SHORT, PASSWORD_MIN_LENGTH);
+				$password_highlight = INPUT_ERROR_STYLE;
+				break;
+			case (strlen($confpassword) == 0):
+				$error = ERROR_EMPTY_CONFIRMATION_PASSWORD;
+				$password_highlight = INPUT_ERROR_STYLE;
+				$password_confirm_highlight = INPUT_ERROR_STYLE;
+				break;
+			case ($confpassword != $password):
+				$error = ERROR_PASSWORD_MATCH;
+				$password_highlight = INPUT_ERROR_STYLE;
+				$password_confirm_highlight = INPUT_ERROR_STYLE;
+				break;
+			case (strlen($email) == 0):
+				$error = ERROR_EMAIL_ADDRESS_REQUIRED;
+				$email_highlight = INPUT_ERROR_STYLE;
+				$password_highlight = INPUT_ERROR_STYLE;
+				$password_confirm_highlight = INPUT_ERROR_STYLE;
+				break;
+			case (!preg_match(VALID_EMAIL_PATTERN, $email)):
+				$error = ERROR_INVALID_EMAIL_ADDRESS;
+				$email_highlight = INPUT_ERROR_STYLE;
+				$password_highlight = INPUT_ERROR_STYLE;
+				$password_confirm_highlight = INPUT_ERROR_STYLE;
+				break;
+			default: //valid input, create user
+				$this->Query("INSERT INTO ".$this->config['table_prefix']."users SET ".
+					"signuptime = now(), ".
+					"name = '".mysql_real_escape_string($name)."', ".
+					"email = '".mysql_real_escape_string($email)."', ".
+					"password = md5('".mysql_real_escape_string($_POST['password'])."')");
+
+				// log in
+				$this->SetUser($this->LoadUser($name));
+				$params .= 'registered=true';
+				$this->Redirect($url.$params);
 		}
 		// END *** Register ***
-	} 
+	}
 
 	// BEGIN *** Usersettings ***
 	elseif  (isset($_POST['action']) && ($_POST['action'] == 'updatepass'))
 	{
-        	$name = trim($_POST['yourname']);
-		if (strlen($name) == 0) // empty username	
+		$name = trim($_POST['yourname']);
+		if (strlen($name) == 0) // empty username
 		{
 			$newerror = ERROR_EMPTY_USERNAME;
 			$username_temp_highlight = INPUT_ERROR_STYLE;
 		}
-		elseif (!$this->IsWikiName($name)) // check if name is WikiName style	
+		elseif (!$this->IsWikiName($name)) // check if name is WikiName style
 		{
 			$newerror = ERROR_WIKINAME;
 			$username_temp_highlight = INPUT_ERROR_STYLE;
@@ -497,10 +539,10 @@ else
 ?>
 	<input type="hidden" name="action" value="login" />
 	<table class="usersettings">
-   	<tr>
-   		<td colspan="2"><?php echo $this->Format(REGISTER_HEADING) ?></td>
-   		<td>&nbsp;</td>
-   	</tr>
+	<tr>
+		<td colspan="2"><?php echo ($register == '1') ?  $this->Format(LOGIN_REGISTER_HEADING) : $this->Format(LOGIN_HEADING) ?></td>
+		<td>&nbsp;</td>
+	</tr>
 	<tr>
 		<td>&nbsp;</td>
 		<td><?php echo $this->Format(REGISTERED_USER_LOGIN_LABEL); ?></td>
@@ -526,11 +568,20 @@ else
 	</tr>
 	<tr>
 		<td>&nbsp;</td>
-		<td><input type="submit" value="<?php echo LOGIN_BUTTON_LABEL ?>" size="40" /></td>
+		<td><input name="submit" type="submit" value="<?php echo LOGIN_BUTTON_LABEL ?>" size="40" /></td>
 	</tr>
+<?php
+	// END *** Login/Logout ***
+	$register = $this->GetConfigValue('allow_user_registration');
+	if($register == '1')
+	{
+?>
 	<tr>
 		<td>&nbsp;</td>
 		<td width="500"><?php echo $this->Format(NEW_USER_REGISTER_LABEL); ?></td>
+	</tr>
+	<tr>
+		<td colspan="2" align="left"><?php $urobj->URAuthDisplay(); ?></td>
 	</tr>
 	<tr>
 		<td align="right"><?php echo CONFIRM_PASSWORD_LABEL ?></td>
@@ -542,14 +593,17 @@ else
 	</tr>
 	<tr>
 		<td>&nbsp;</td>
-		<td><input type="submit" value="<?php echo REGISTER_BUTTON_LABEL ?>" size="40" /></td>
+		<td><input name="submit" type="submit" value="<?php echo REGISTER_BUTTON_LABEL ?>" size="40" /></td>
 	</tr>
+<?php
+	}
+?>
 	</table>
 <?php
 	print($this->FormClose());
-	// END *** Login/Register ***
+	// END *** Register ***
 
-	// BEGIN *** Login Temp Password *** 
+	// BEGIN *** Login Temp Password ***
 	print($this->FormOpen());
 ?>
 	<input type="hidden" name="action" value="updatepass" />
@@ -561,7 +615,7 @@ else
 		<td align="left"></td>
 		<td><?php echo $this->Format(RETRIEVE_PASSWORD_MESSAGE) ?></td>
 	</tr>
-<?php   
+<?php
 	if (isset($newerror))
 	{
 		print('<!-- <wiki-error>invalid username or pwd</wiki-error> --><tr><td></td><td><em class="error">'.$this->Format($newerror).'</em></td></tr>'."\n");
@@ -582,6 +636,6 @@ else
    </table>
 <?php
 	print($this->FormClose());
-	// END *** Login Temp Password *** 
+	// END *** Login Temp Password ***
 }
 ?>

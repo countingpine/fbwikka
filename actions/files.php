@@ -24,6 +24,9 @@
  * @uses	Wakka::HasAccess()
  * @uses	Wakka::IsAdmin()
  * @uses	Wakka::MiniHref()
+ * @uses	Wakka::href()
+ * @uses	Wakka::FormClose()
+ * @uses	Wakka::GetPageTag()
  * @uses	Wakka::htmlspecialchars_ent()
  *
  * @todo security: check file type, not only extension
