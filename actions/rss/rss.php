@@ -15,7 +15,7 @@
  * NOTE 2: no solution for timeout problems with non-existing feeds yet...
  *
  * @package		Actions
- * @version		$Id: rss.php 1638 2010-04-26 15:40:22Z DotMG $
+ * @version		$Id: rss.php 1803 2011-07-14 01:35:36Z BrianKoontz $
  * @license http://www.gnu.org/copyleft/gpl.html GNU General Public License
  * @filesource
  *
@@ -104,7 +104,9 @@ if (preg_match("/^(http|https):\/\/([^\\s\"<>]+)$/i", $rss_path))
 	while ($max_items > 0 && ($item = $rss->getNextItem()))
 	{
 		$cached_output .= "<li><a href=\"".$item['link']."\">".$item['title']."</a><br />\n";
-		$cached_output .= $item['description']."</li>\n";
+		if(isset($item['description']))
+			$cached_output .= $item['description'];
+		$cached_output .= "</li>\n";
 		$max_items = $max_items - 1;
 	}
 	$cached_output .= "</ul>\n";
@@ -112,7 +114,7 @@ if (preg_match("/^(http|https):\/\/([^\\s\"<>]+)$/i", $rss_path))
 }
 else
 {
-	echo '<p class="error">'.ERROR_INVALID_RSS_SYNTAX.'</p>'."\n"; # i18n
+	echo '<p class="error">'.T_("Error: Invalid RSS action syntax. <br /> Proper usage: {{rss http://domain.com/feed.xml}} or {{rss url=\"http://domain.com/feed.xml\"}}").'</p>'."\n"; # i18n
 }
 
 ?>

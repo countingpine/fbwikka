@@ -22,6 +22,9 @@
 
 // init
 $result_page_list = '';
+$utf8Compatible = 0;
+if(1 == $this->config['utf8_compat_search'])
+	$utf8Compatible = 1;
 
 // get input
 $phrase = stripslashes(trim($this->GetSafeVar('phrase', 'get'))); #312
@@ -31,8 +34,13 @@ $case = stripslashes(trim($this->GetSafeVar('case', 'get'))); #312
 // TODO i18n
 ?>
 <?php echo $this->FormOpen('', '', 'get'); ?>
-<fieldset><legend><?php echo SEARCH_FOR; ?></legend>
-<input name="phrase" size="40" value="<?php echo $phrase ?>" /> <input id="case_sensitive" name="case" type="checkbox" value="1" <?php echo (1==$case?'checked="checked"':'') ?> /><label for="case_sensitive">Case sensitive</label> <input type="submit" value="Search"/>
+<fieldset><legend><?php echo T_("Search for"); ?></legend>
+<input name="phrase" size="40" value="<?php echo $phrase ?>" /> 
+<?php if(0==$utf8Compatible) { ?>
+<input id="case_sensitive" name="case" type="checkbox" value="1" <?php echo (1==$case?'checked="checked"':'') ?> />
+<label for="case_sensitive">Case sensitive</label> 
+<?php } ?>
+<input type="submit" value="Search"/>
 </fieldset>
 <?php echo $this->FormClose(); ?>
 
@@ -43,7 +51,7 @@ $case = stripslashes(trim($this->GetSafeVar('case', 'get'))); #312
 // if 'phrase' is empty after trimming and removing slashes, search tips NOT displayed
 
 // process search request
-$results = $this->FullTextSearch($phrase, $case);
+$results = $this->FullTextSearch($phrase, $case, $utf8Compatible);
 $total_results = 0;
 if ($results)
 {
@@ -59,25 +67,28 @@ if ($results)
 switch ($total_results)
 {
 	case 0:
-		$match_str = SEARCH_ZERO_MATCH;
+		$match_str = T_("No matches");
 		break;
 	case 1:
-		$match_str = SEARCH_ONE_MATCH;
+		$match_str = T_("One match found");
 		break;
 	default:
-		$match_str = sprintf(SEARCH_N_MATCH, $total_results);
+		$match_str = sprintf(T_("%d matches found"), $total_results);
 		break;
 }
-printf(SEARCH_RESULTS, $match_str, $this->htmlspecialchars_ent($phrase));
+printf(T_("Search results: <strong>%s</strong> for <strong>%s</strong>"), $match_str, $this->htmlspecialchars_ent($phrase));
 if ($total_results > 0)
 {
 	$expsearchurl  = $this->Href('', 'TextSearchExpanded', 'phrase='.urlencode($phrase));
-	$expsearchlink = '<a href="'.$expsearchurl.'">'.SEARCH_EXPANDED_LINK_DESC.'</a>';
+	$expsearchlink = '<a href="'.$expsearchurl.'">'.T_("Expanded Text Search").'</a>';
 
 	echo '<ol>'.$result_page_list.'</ol>'."\n";
-	printf('<br />'.SEARCH_NOT_SURE_CHOICE.'<br />'.SEARCH_TRY_EXPANDED,$expsearchlink);
+	printf('<br />'.T_("Not sure which page to choose?").'<br />'.T_("Try the %s which shows surrounding text."),$expsearchlink);
 }
 
 // display search tips
-print(SEARCH_TIPS);
+if(0==$utf8Compatible)
+	print(SEARCH_TIPS);
+else
+	print(SEARCH_TIPS_UTF8_COMPAT);
 ?>
