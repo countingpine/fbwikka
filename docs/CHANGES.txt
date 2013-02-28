@@ -1,22 +1,3 @@
-Wikka 1.1.6.1
-
-Released on December 23, 2005 - Security release
-
-This release addresses a vulnerability issue. Thanks to DotMG for providing the security patch.
-
-Bug fix:
-
-# Fixed a XSS security bug in the search actions.
-    * Files modified: actions/textsearch.php, actions/textsearchexpanded.php 
-
-Misc:
-
-# Changed default write ACL to '+'.
-    * File modified: wikka.php 
-# Shorter and improved code for expanded search.
-    * File modified: actions/textsearchexpanded.php
-
-
 Wikka 1.1.6.0
 
 Released on January 24, 2005 - "The ever growing release"
@@ -118,7 +99,7 @@ Misc:
 
 # css/wikka.css modified to add style info for LastEdit and JwCalendar.
 # Removed file /actions/wakkabug.php. This file was pointing to wakkawiki.com -- which doesn't exist anymore.
-# Changed setup links that pointed to wakkawiki.com; they now point to http://wikka.jsnx.com/WikkaInstallation8.
+# Changed setup links that pointed to wakkawiki.com; they now point to http://wikkawiki.org/WikkaInstallation8.
 # Slightly updated files in /docs directory: INSTALL, readme, and UPGRADE.
 # Added note to bottom of RecentChanges if WikiPing is enabled, per suggestion from NilsLindenberg.
     * File modified: actions/recentchanges.php 

@@ -29,6 +29,7 @@ var WikiEdit = function(){
  this.buttons = new Array();
 }
 var base_url = "";
+var long_base_url = "";
 
 WikiEdit.prototype = new ProtoEdit();
 WikiEdit.prototype.constructor = WikiEdit;
@@ -68,9 +69,11 @@ WikiEdit.prototype.init = function(id, name, nameClass, imgPath) {
     delete locarray[(locarray.length-2)];
     base_url = locarray.join("/");
     base_url = base_url.substr(0, base_url.length-1);
+    long_base_url = base_url;
   }
   else {
     base_url = mylocation.substring(0, base_till);
+    long_base_url = mylocation.replace(/=.*$/, '=');
   }
  if (isIE)
  {
@@ -98,6 +101,8 @@ WikiEdit.prototype.init = function(id, name, nameClass, imgPath) {
  this.addButton("indent","Indent","'\\t','',0,1");
  this.addButton("outdent","Outdent","","document.getElementById('" + this.id + "')._owner.unindent");
  this.addButton(" ");
+ this.addButton("find","Search &amp; replace","","document.getElementById('" + this.id + "')._owner.searchAndReplace");
+ this.addButton(" ");
 // this.addButton("quote","quote","'\\n<[',']>\\n',2");
  this.addButton("hr","Line","'','\\n----\\n',2");
  this.addButton("textred","Marked text","'\\'\\'','\\'\\'',2");
@@ -107,7 +112,7 @@ WikiEdit.prototype.init = function(id, name, nameClass, imgPath) {
  this.addButton("help","Help & About","","document.getElementById('" + this.id + "')._owner.help");
  this.addButton("customhtml",'<td><div style="font:12px Arial;text-decoration:underline; padding:4px;" id="hilfe_' + this.id + '" onmouseover=\'this.className="btn-hover";\' '
             + 'onmouseout=\'this.className="btn-";\' class="btn-" '
-            + 'onclick="this.className=\'btn-pressed\';window.open(base_url+\'FormattingRules\');" '
+            + 'onclick="this.className=\'btn-pressed\';window.open(long_base_url+\'FormattingRules\');" '
             + ' title="Help on Wikka formatting">Help</a>'
             + '</div></td>');
  
@@ -170,7 +175,7 @@ WikiEdit.prototype._TSum = function (Text, Tag, Tag2, Skip)
  }
  else
  {
-  var w = new RegExp("^([ ]*)"+this.begin+"([ ]*)(([*]|([1-9][0-9]*|[a-zA-Z])([.]|[)]))( |))(.*)$");
+  var w = new RegExp("^([ ]*)"+this.begin+"( +|\t+)(([*]|([1-9][0-9]*|[a-zA-Z])([.]|[)]))( |))(.*)$");
   q = Text.match(w);
   if (Skip && q!=null)
   {
@@ -270,6 +275,24 @@ WikiEdit.prototype.MarkUp = function (Tag, Text, Tag2, onNewLine, expand, strip)
    fIn = false;
  }
  return r;
+}
+
+WikiEdit.prototype.searchAndReplace = function () {
+ try 
+ {
+  if (typeof(sr_dlg) != 'undefined' && (typeof(sr_dlg.show) == 'function')) {sr_dlg.show();}
+  else if (typeof(sr_loaded) == 'undefined') 
+  {
+   sr_loaded = true;
+   sr_script = document.createElement('script');
+   sr_script.setAttribute('type', 'text/javascript');
+	  sr_script.setAttribute('src', base_url+'3rdparty/plugins/wikiedit/wikiedit_sr.js');
+   document.body.appendChild(sr_script);
+   sr_launch = function() {setTimeout("(sr_dlg && (typeof(sr_dlg.show)=='function')) ? sr_dlg.show() : sr_launch();", 100);}
+   sr_launch();
+  }
+ }
+ catch (e) { alert(e);}
 }
 
 WikiEdit.prototype.keyDown = function (event) {
@@ -377,6 +400,10 @@ WikiEdit.prototype.keyDown = function (event) {
   case 2122: //J
    if (sel)
     res = this.insTag("''", "''", 2);
+  break;
+  case 2118: //Ctrl+Shift+F
+   if (event.shiftKey)
+    this.searchAndReplace();
   break;
   case 4179: //Alt+S
     try {
@@ -669,6 +696,7 @@ WikiEdit.prototype.help = function ()
  s += " Ctrl+Shift+N - Ordered List\n";
  s += " Ctrl+Shift+O - Ordered List\n";
  s += " Ctrl+Shift+Minus - Horizontal line\n";
+ s += " Ctrl+Shift+F - Advanced search/replace\n";
 
  alert(s);
 }

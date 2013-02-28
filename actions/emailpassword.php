@@ -1,56 +1,82 @@
 <?php
+/** 
+ * Send the user a reminder with the md5 checksum of his or her password via email.
+ * 
+ * @author	{@link http://comawiki.martignier.net Costal Martignier} initial action
+ * @author	{@link http://wikkawiki.org/NilsLindenberg Nils Lindenberg} rewritten
+ * @author	{@link http://wikkawiki.org/DarTar Dario Taraborelli} further cleanup, error styling and improved logical structure
+ * @license http://comawiki.martignier.net/LizenzenUndBedingungen
+ * @email 	actions@martignier.net
+ * 
+ */ 
 
-// author: costal martignier
-// beschreibung: ermöglicht es bei einem vergessenen passwort ein neues bzw. temporäres per mail zu schicken lassen
-// description: makes it possible to send a temporary password by mail for users who have forgotten their password
-// parameter: keine
-// parameter:  none
-// lizenz: http://comawiki.martignier.net/LizenzenUndBedingungen
-// license:  http://comawiki.martignier.net/LizenzenUndBedingungen
-// email: actions@martignier.net
-// url: http://comawiki.martignier.net
+// *** constant section ***
+if (!defined('INPUT_ERROR_STYLE')) define('INPUT_ERROR_STYLE', 'class="highlight"');
+if (!defined('PW_FORGOTTEN_HEADING')) define('PW_FORGOTTEN_HEADING', '==== Password reminder ==== ');
+if (!defined('PW_CHK_SENT')) define('PW_CHK_SENT', "A password reminder has been sent to %s's registered email address."); // %s - username
+if (!defined('PW_FORGOTTEN_MAIL')) define('PW_FORGOTTEN_MAIL', "Hello, %1\$\n\n\nSomeone requested that we send to this email address a password reminder to login at %2\$s. If you did not request this reminder, disregard this email. -- No action is necessary. -- Your password will stay the same.\n\nYour wikiname: %1\$s \nPassword reminder: %3\$s \nURL: %4\$s \n\nDo not forget to change the password immediately after logging in."); // %1\$ - username; %2\$s - wiki name; %3\$s - md5 sum of pw; %4\$s - login url of the wiki  
+if (!defined('PW_FORGOTTEN_MAIL_REF')) define('PW_FORGOTTEN_MAIL_REF', 'Password reminder for %s'); // %s - wiki name
+if (!defined('PW_FORM_TEXT')) define('PW_FORM_TEXT', 'Enter your WikiName and a password reminder will be sent to your registered email address.');
+if (!defined('ERROR_EMPTY_USER')) define('ERROR_EMPTY_USER', 'Please fill in your username!');
+if (!defined('ERROR_UNKNOWN_USER')) define('ERROR_UNKNOWN_USER', 'You have entered a non-existent user!');
+if (!defined('ERROR_MAIL_NOT_SENT')) define('ERROR_MAIL_NOT_SENT', 'An error occured while trying to send the password. Outgoing mail might be disabled. Please contact your server administrator.');
+if (!defined('BUTTON_SEND_PW_LABEL')) define('BUTTON_SEND_PW_LABEL', 'Send reminder');
+if (!defined('USERSETTINGS_LINK')) define('USERSETTINGS_LINK', 'Return to the [[UserSettings login]] screen.');
 
-if (!$_POST["wikiname"] == "")
+
+// *** initialization ***
+$input = $output = '';
+$highlight = '';
+$user = FALSE;
+$mailsent = FALSE;
+
+//print heading
+$output .= $this->Format(PW_FORGOTTEN_HEADING);
+
+if (isset($_POST['wikiname'])) // get posted values
 {
-  $user = $_POST["wikiname"];
-  if (($user = $this->LoadUser($_POST["wikiname"])) && ($this->IsWikiName($_POST["wikiname"])))
-  {
-	$email = $this->Format($user['email']);
-	$md5pass = $this->Format($user['password']);
-	$reference = "Change of password for ".$this->config['base_url'];
+	$input = $_POST['wikiname'];
+	$user = $this->LoadUser($input);
 
-	$header = "From: ".$this->config['wakka_name']." <".$this->config['admin_email'].">";
-
-	$message  = "Hi, ".$user['name'].".\n\nYou or someone else requested that we send a temporary password to login to ".$this->config['wakka_name'].".\n\n";
-	$message .= "If you did not request this, disregard this email. -- No action is necessary. -- Your password will stay the same.\n\n";
-	$message .= "Your wikiname: ".$user['name']." \n";
-	$message .= "Temporary password: ".$md5pass."\n";
-	$message .= $this->config['base_url']."\n\n";
-	$message .= "Do not forget to change the password immediately after logging in.\n";
-
-	mail($email,$reference,$message,$header);
-
-	echo "<br />A temporary password was sent to the registered email address of ".$user['name'].". <br /><br />";
-  }
-  else
-  {
-  echo "<font color=\"red\">You entered a non-existent user,<br />";
-  echo "or you did not write the user name as a proper WikiName with capital letters. <br /><br />";
-  echo "Try again:<br /><br /></font>";
-
-	$form  = "<form name=\"getwikiname\" action=\"\" method=\"post\">";
-	$form .= "<input type=\"text\" name=\"wikiname\" value=\"\"><br />";
-	$form .= "<input type=\"submit\" value=\"Send password\" /></form>";
-	echo $form;
-  }
+	switch(TRUE)
+	{
+		case ($input == ''): // empty user
+			$output .= '<em class="error">'.ERROR_EMPTY_USER.'</em><br />'."\n";
+			$highlight = INPUT_ERROR_STYLE;
+			break;
+		case ($input != '' && !$user): // non-existing user
+			$output .= '<em class="error">'.ERROR_UNKNOWN_USER.'</em><br />'."\n";
+			$highlight = INPUT_ERROR_STYLE;
+			break;
+		case ($input != '' && $user): // user exists, proceed
+			$header = "From: ".$this->config['wakka_name']." <".$this->config['admin_email'].">";
+			$reference = sprintf(PW_FORGOTTEN_MAIL_REF, $user['name']);
+			$mail = sprintf(PW_FORGOTTEN_MAIL, $user['name'], $this->config['wakka_name'], $user['password'], $this->config['base_url'].'UserSettings')."\n";
+			if (mail($user['email'], $reference, $mail, $header))
+			{
+				$mailsent = TRUE;
+				$output .= '<br /><em class="success">'.sprintf(PW_CHK_SENT, $user['name']).'</em><br />'."\n";
+				$output .= $this->Format(USERSETTINGS_LINK);
+			}
+			else 
+			{
+				$output .= '<em class="error">'.ERROR_MAIL_NOT_SENT.'</em><br />'."\n";
+			}
+			break;
+	}
 }
-else
+
+// display input form
+if (!$mailsent)
 {
-	echo "Enter your WikiName and a temporary password will be sent to the registered email address.<br /><br />";
-
-	$form  = "<form name=\"getwikiname\" action=\"\" method=\"post\">";
-	$form .= "<input type=\"text\" name=\"wikiname\" value=\"\"><br />";
-	$form .= "<input type=\"submit\" value=\"Send password\" /></form>";
-	echo $form;
+	$output .= '<p>'.PW_FORM_TEXT.'</p>'; 
+//	$output .= '<form name="getwikiname" action="'.$this->href().'" method="post">';
+	$output .= $this->FormOpen();
+	$output .= '<input '.$highlight.' type="text" name="wikiname" value="" />';
+	$output .= '<input type="submit" value="'.BUTTON_SEND_PW_LABEL.'" />';
+	$output .= $this->FormClose();   
 }
+
+// *** output section ***
+if ($output !== '') echo $output;
 ?>

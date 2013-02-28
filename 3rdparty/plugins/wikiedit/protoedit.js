@@ -125,16 +125,16 @@ ProtoEdit.prototype.addButton = function (name, desc, actionParams, actionName) 
  this.buttons[i].actionParams = actionParams;
 }
 
-ProtoEdit.prototype.checkKey = function (k) 
+ProtoEdit.prototype.checkKey = function (k)
 {
-	switch(k)
-	{
+	switch (k) {
 		case 85+4096:
 		case 73+4096:
 		case 49+2048: 
 		case 50+2048: 
 		case 51+2048: 
 		case 52+2048:
+		case 53+2048:
 		case 76+4096: 
 		case 76+2048: 
 		case 78+2048: 
