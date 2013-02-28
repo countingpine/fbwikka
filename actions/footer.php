@@ -48,6 +48,13 @@ Search: <input name="phrase" size="15" class="searchbox" />
 Powered by <?php echo $this->Link("http://wikka.jsnx.com/", "", "Wikka Wakka Wiki ".$this->GetWakkaVersion()) ?>
 </div>
 
+<p><br/></p>
+<p><br/></p>
+<div align="center">
+<a href="http://sourceforge.net"><img src="http://sourceforge.net/sflogo.php?group_id=122342&amp;type=1" width="88" height="31" border="0" alt="sf.net" /></a>
+<a href="http://www.phatcode.net/"><img src="images/phatcode-logo.gif" border="0" alt="phatcode" /></a>
+</div>
+
 <?php
 	if ($this->GetConfigValue("sql_debugging"))
 	{
@@ -59,3 +66,5 @@ Powered by <?php echo $this->Link("http://wikka.jsnx.com/", "", "Wikka Wakka Wik
 		print("</div>");
 	}
 ?>
+</body>
+</html>

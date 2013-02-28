@@ -111,7 +111,7 @@ if ($this->UserIsOwner())
 }
 else
 {
-	print("<em>You're not the owner of this page.</em>");
+	print('<!-- <wiki-error>forbidden</wiki-error> --><em>You are not the owner of this page.</em>');
 }
 
 ?>

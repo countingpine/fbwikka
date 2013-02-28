@@ -25,7 +25,13 @@ if (is_array($vars))
     	if ($param == 'alt') {$alt=$this->htmlspecialchars_ent($vars['alt']);}
 	}
 }
+
 $url = $this->cleanUrl(trim($vars['url']));
+
+if( substr( $url, 0, 7 ) == '/images' )
+{
+	$url = $this->config['upload_path'] . '/' . $this->GetPageTag() . '/' . basename( $url );
+}
 
 $output = "<img class=\"".$class."\" src=\"".$url."\" alt=\"".$alt."\" title=\"".$title."\" />";
 

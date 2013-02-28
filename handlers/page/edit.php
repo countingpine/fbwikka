@@ -1,11 +1,12 @@
 <div class="page">
 <?php
 if (!(preg_match("/^[A-Za-zÄÖÜßäöü]+[A-Za-z0-9ÄÖÜßäöü]*$/s", $this->tag))) {
-	echo '<em>The page name is invalid. Valid page names must start with a letter and contain only letters and numbers.</em>';
+	echo '<!-- <wiki-error>invalid page name</wiki-error> --><em>The page name is invalid. Valid page names must start with a letter and contain only letters and numbers.</em>';
 }
 elseif ($this->HasAccess("write") && $this->HasAccess("read"))
 {
 	if ($newtag = $_POST['newtag']) $this->Redirect($this->Href('edit', $newtag));
+	
 	if ($_POST)
 	{
 		// strip CRLF line endings down to LF to achieve consistency ... plus it saves database space.
@@ -25,7 +26,7 @@ elseif ($this->HasAccess("write") && $this->HasAccess("read"))
 			{
 				if ($this->page['id'] != $_POST['previous'])
 				{
-					$error = 'OVERWRITE ALERT: This page was modified by someone else while you were editing it.<br />'."\n".'Please copy your changes and re-edit this page.';
+					$error = '<!-- <wiki-error>overwritten alert</wiki-error> --> OVERWRITE ALERT: This page was modified by someone else while you were editing it.<br />' . "\n". 'Please copy your changes and re-edit this page.';
 				}
 			}
 			// store
@@ -55,14 +56,19 @@ elseif ($this->HasAccess("write") && $this->HasAccess("read"))
 	}
 
 	// fetch fields
-	if (!$previous = $_POST['previous']) $previous = $this->page['id'];
-	if (!$body) $body = $this->page['body'];
+	if (!$previous = $_POST['previous']) 
+		$previous = $this->page['id'];
+	
+	if (!$body) 
+		$body = $this->page['body'];
+	
 	$body = preg_replace("/\n[ ]{4}/", "\n\t", $body);						# @@@ FIXME: misses first line and multiple sets of four spaces - JW 2005-01-16
 
 
 	if ($result = mysql_query("describe ".$this->config['table_prefix']."pages tag")) {
 		$field = mysql_fetch_assoc($result);
-		if (preg_match("/varchar\((\d+)\)/", $field['Type'], $matches)) $maxtaglen = $matches[1];
+		if (preg_match("/varchar\((\d+)\)/", $field['Type'], $matches)) 
+			$maxtaglen = $matches[1];
 	}
 	else
 	{
@@ -101,7 +107,7 @@ elseif ($this->HasAccess("write") && $this->HasAccess("read"))
 	elseif (!$this->page && strlen($this->tag) > $maxtaglen)				# rename page
 	{
 		$this->tag = substr($this->tag, 0, $maxtaglen); // truncate tag to feed a backlinks-handler with the correct value. may be omited. it only works if the link to a backlinks-handler is built in the footer.
-		$output  = '<div class="error">Tag too long! $maxtaglen characters max.</div><br />'."\n";
+		$output  = '<!-- <wiki-error>tag too long</wiki-error> --><div class="error">Tag too long! $maxtaglen characters max.</div><br />'."\n";
 		$output .= 'FYI: Clicking on Rename will automatically truncate the tag to the correct size.<br /><br />'."\n";
 		$output .= $this->FormOpen('edit');
 		$output .= '<input name="newtag" size="75" value="'.$this->htmlspecialchars_ent($this->tag).'" />';
@@ -148,7 +154,7 @@ elseif ($this->HasAccess("write") && $this->HasAccess("read"))
 }
 else
 {
-	$message =	'<em>You don\'t have write access to this page. You might need to register an account to get write access.</em><br />'."\n".
+	$message =	'<!-- <wiki-error>forbidden</wiki-error> --><em>You don\'t have write access to this page. You might need to register an account to get write access.</em><br />'."\n".
 			"<br />\n".
 			'<a href="'.$this->Href('showcode').'" title="Click to view page formatting code">View formatting code for this page</a>'.
 			"<br />\n";

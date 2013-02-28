@@ -76,6 +76,8 @@ define('GESHI_HEADER_PRE', 2);
 define('GESHI_CAPS_NO_CHANGE', 0);
 define('GESHI_CAPS_UPPER', 1);
 define('GESHI_CAPS_LOWER', 2);
+define('GESHI_CAPS_CAPITALIZE', 3);
+define('GESHI_CAPS_REPLACE', 4);
 
 // Link style constants - use these (added in 1.0.2)
 define('GESHI_LINK', 0);
@@ -1438,7 +1440,7 @@ class GeSHi
 											{
 												$attributes = ' class="co' . $comment_key . '"';
 											}
-											$test_str = "<span$attributes>" . htmlentities($this->change_case($test_str), ENT_COMPAT, $this->encoding);
+											$test_str = "<span$attributes>" . htmlentities($this->change_case($test_str, $test_str), ENT_COMPAT, $this->encoding);
 										}
 										else
 										{
@@ -1551,17 +1553,21 @@ class GeSHi
 	 * -------------------
 	 * Changes the case of a keyword for those languages where a change is asked for
 	 */
-	function change_case ( $instr )
+	function change_case ( $instr, $text )
 	{
-		if ( $this->language_data['CASE_KEYWORDS'] == GESHI_CAPS_UPPER )
+		switch ( $this->language_data['CASE_KEYWORDS'] )
 		{
+		case GESHI_CAPS_UPPER:
 			return strtoupper($instr);
-		}
-		elseif ( $this->language_data['CASE_KEYWORDS'] == GESHI_CAPS_LOWER )
-		{
+		case GESHI_CAPS_LOWER:
 			return strtolower($instr);
+		case GESHI_CAPS_CAPITALIZE:
+			return ucfirst( strtolower( $instr ) );
+		case GESHI_CAPS_REPLACE:
+			return $text;
+		default:
+			return $instr;
 		}
-		return $instr;
 	}
 
 
@@ -1669,12 +1675,12 @@ class GeSHi
 							$keyword = quotemeta($keyword);
 							if ( $this->language_data['CASE_SENSITIVE'][$k] )
 							{
-								$stuff_to_parse = preg_replace("#([^a-zA-Z0-9\$_\|\.\#;>])($keyword)([^a-zA-Z0-9_<\|%\-&])#e", "'\\1' . $func2('\\2', '$k', 'BEGIN') . '<|$styles>' . $func('\\2') . '|>' . $func2('\\2', '$k', 'END') . '\\3'", $stuff_to_parse);
+								$stuff_to_parse = preg_replace("#([^a-zA-Z0-9\$_\|\.\#;>])($keyword)([^a-zA-Z0-9_<\|%\-&])#e", "'\\1' . $func2('\\2', '$k', 'BEGIN') . '<|$styles>' . $func('\\2','$keyword') . '|>' . $func2('\\2', '$k', 'END') . '\\3'", $stuff_to_parse);
 							}
 							else
 							{
 								// Change the case of the word.
-								$stuff_to_parse = preg_replace("#([^a-zA-Z0-9\$_\|\.\#;>])($keyword)([^a-zA-Z0-9_<\|%\-&])#ie", "'\\1' . $func2('\\2', '$k', 'BEGIN') . '<|$styles>' . $func('\\2') . '|>' . $func2('\\2', '$k', 'END') . '\\3'", $stuff_to_parse);
+								$stuff_to_parse = preg_replace("#([^a-zA-Z0-9\$_\|\.\#;>])($keyword)([^a-zA-Z0-9_<\|%\-&])#ie", "'\\1' . $func2('\\2', '$k', 'BEGIN') . '<|$styles>' . $func('\\2','$keyword') . '|>' . $func2('\\2', '$k', 'END') . '\\3'", $stuff_to_parse);
 							}
 							$stuff_to_parse = substr($stuff_to_parse, 0, strlen($stuff_to_parse) - 1);
 						}

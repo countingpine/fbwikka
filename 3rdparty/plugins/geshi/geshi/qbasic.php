@@ -128,8 +128,6 @@ $language_data = array (
 			)
 		),
 	'URLS' => array(
-		1 => '',
-		3 => 'http://www.qbasicnews.com/qboho/qck{FNAME}.shtml'
 		),
 	'OOLANG' => false,
 	'OBJECT_SPLITTERS' => array(

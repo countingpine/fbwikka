@@ -397,6 +397,38 @@ WikiEdit.prototype.keyDown = function (event) {
    if (event.ctrlKey && event.shiftKey)
     res = this.insTag("\t1) ", "", 0, 1, 1);
   break;
+
+  case 2161: //ctrl+f2
+    res = this.insTag('{{fbdoc item="category" value="', '"}}', 0, 1);
+  	break;
+  case 2162: //ctrl+f3
+    res = this.insTag('{{fbdoc item="keyword" value="', '"}}', 0, 1);
+  	break;
+  case 2163: //ctrl+f4
+    res = this.insTag('{{fbdoc item="title" value="', '"}}', 0, 1);
+  	break;
+  case 2164: //ctrl+f5
+    res = this.insTag('{{fbdoc item="title" value="', '"}}', 0, 1);
+  	break;
+  case 2165: //ctrl+f6
+    res = this.insTag('{{fbdoc item="syntax"}}', '\n');
+  	break;
+  case 2166: //ctrl+f7
+    res = this.insTag('{{fbdoc item="desc"}}', '\n');
+  	break;
+  case 2167: //ctrl+f8
+    res = this.insTag('{{fbdoc item="ex"}}', '\n');
+  	break;
+  case 2168: //ctrl+f9
+    res = this.insTag('{{fbdoc item="diff"}}', '\n');
+	break;
+  case 2169: //ctrl+f10
+     res = this.insTag('{{fbdoc item="see"}}', '\n');
+ 	 break;
+  case 2170: //ctrl+f11
+     res = this.insTag('{{fbdoc item="back" value="', '"}}', 0, 1);
+ 	 break;
+
   case 13:
   case 2061:
   case 4109:

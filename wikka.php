@@ -55,6 +55,68 @@ if ( ! function_exists("mysql_real_escape_string") )
 	}
 }
 
+
+if (! function_exists('bytesToHumanReadableUsage')) {
+        /**
+        * Converts bytes to a human readable string
+        * @param int $bytes Number of bytes
+        * @param int $precision Number of decimal places to include in return string
+        * @param array $names Custom usage strings
+        * @return string formatted string rounded to $precision
+        */
+        function bytesToHumanReadableUsage($bytes, $precision = 2, $names = '')
+        {
+           if (!is_numeric($bytes) || $bytes < 0) {
+               return false;
+           }
+       
+           for ($level = 0; $bytes >= 1024; $level++) {    
+               $bytes /= 1024;      
+           }
+   
+           switch ($level)
+           {
+               case 0:
+                   $suffix = (isset($names[0])) ? $names[0] : 'Bytes';
+                   break;
+               case 1:
+                   $suffix = (isset($names[1])) ? $names[1] : 'KB';
+                   break;
+               case 2:
+                   $suffix = (isset($names[2])) ? $names[2] : 'MB';
+                   break;
+               case 3:
+                   $suffix = (isset($names[3])) ? $names[3] : 'GB';
+                   break;      
+               case 4:
+                   $suffix = (isset($names[4])) ? $names[4] : 'TB';
+                   break;                            
+               default:
+                   $suffix = (isset($names[$level])) ? $names[$level] : '';
+                   break;
+           }
+   
+           if (empty($suffix)) {
+               trigger_error('Unable to find suffix for case ' . $level);
+               return false;
+           }
+   
+           return round($bytes, $precision) . ' ' . $suffix;
+        }
+}
+
+if (! function_exists('mkdir_r')) {
+    function mkdir_r ($dir) {
+        if (strlen($dir) == 0) return 0;
+        if (is_dir($dir)) return 1;
+        elseif (dirname($dir) == $dir) return 1;
+        return (mkdir_r(dirname($dir)) and mkdir($dir,0755));
+    }
+}
+
+//
+//
+//
 class Wakka
 {
 	var $config = array();
@@ -602,6 +664,7 @@ class Wakka
 
 	function SetRedirectMessage($message) { $_SESSION["redirectmessage"] = $message; }
 	function GetRedirectMessage() { $message = $_SESSION["redirectmessage"]; $_SESSION["redirectmessage"] = ""; return $message; }
+	
 	function Redirect($url='', $message='')
 	{
 		if ($message != '') $_SESSION["redirectmessage"] = $message;
@@ -609,18 +672,27 @@ class Wakka
 		header("Location: $url");
 		exit;
 	}
+	
 	// returns just PageName[/method].
-	function MiniHref($method = "", $tag = "") { if (!$tag = trim($tag)) $tag = $this->tag; return $tag.($method ? "/".$method : ""); }
+	function MiniHref($method = "", $tag = "") 
+	{ 
+		if (!$tag = trim($tag)) 
+			$tag = $this->tag; 
+		
+		return $tag.($method ? "/".$method : ""); 
+	}
+	
 	// returns the full url to a page/method.
 	function Href($method = "", $tag = "", $params = "")
 	{
-		$href = $this->config["base_url"].$this->MiniHref($method, $tag);
+		$href = $this->config["base_url"] . $this->MiniHref($method, $tag);
 		if ($params)
 		{
-			$href .= ($this->config["rewrite_mode"] ? "?" : "&amp;").$params;
+			$href .= ($this->config["rewrite_mode"] ? "?" : "&amp;") . $params;
 		}
 		return $href;
 	}
+	
 	function Link($tag, $method='', $text='', $track=TRUE, $escapeText=TRUE, $title='') {
 		if (!$text) $text = $tag;
 		// escape text?
@@ -691,12 +763,20 @@ class Wakka
 	function Footer() { return $this->Action($this->config['footer_action'], 0); }
 
 	// FORMS
-	function FormOpen($method = "", $tag = "", $formMethod = "post")
+	function FormOpen( $method = '', $tag = '', $formMethod = 'post', $enctype = '' )
 	{
-		$result = "<form action=\"".$this->Href($method, $tag)."\" method=\"".$formMethod."\">\n";
-		if (!$this->config["rewrite_mode"]) $result .= "<input type=\"hidden\" name=\"wakka\" value=\"".$this->MiniHref($method, $tag)."\" />\n";
+		$result = '<form ' .
+				  'action="' . $this->Href( $method, $tag ) . 
+				  '" method="' . $formMethod . 
+				  (strlen( enctype ) > 0? '" enctype="' . $enctype : '' ) .
+				  '">' . "\n";
+		
+		if( !$this->config['rewrite_mode'] ) 
+			$result .= '<input type="hidden" name="wakka" value="' . $this->MiniHref( $method, $tag ) . '" />' . "\n";
+		
 		return $result;
 	}
+	
 	function FormClose()
 	{
 		return "</form>\n";
@@ -781,36 +861,88 @@ class Wakka
     				}
 				$vars["wikka_vars"] = trim($vars_temp); // <<< add the buffered parameter-string to the array
 			} else {
-   				return "<span class='error'><em>Unknown action; the action name must not contain special characters.</em></span>"; // <<< the pattern ([A-Za-z0-9])\s+ didn't match!
+   				return "<!-- <wiki-error>unknown action</wiki-error> --><span class='error'><em>Unknown action; the action name must not contain special characters.</em></span>"; // <<< the pattern ([A-Za-z0-9])\s+ didn't match!
 			}
 		}
-		if (!preg_match("/^[a-zA-Z0-9]+$/", $action)) return "<span class='error'><em>Unknown action; the action name must not contain special characters.</em></span>";
+		if (!preg_match("/^[a-zA-Z0-9]+$/", $action)) return "<!-- <wiki-error>unknown action</wiki-error> --><span class='error'><em>Unknown action; the action name must not contain special characters.</em></span>";
 		if (!$forceLinkTracking) $this->StopLinkTracking();
-		$result = $this->IncludeBuffered(strtolower($action).".php", "<em>Unknown action \"$action\"</em>", $vars, $this->config["action_path"]);
+		$result = $this->IncludeBuffered(strtolower($action).".php", "<!-- <wiki-error>unknown action</wiki-error> --><em>Unknown action \"$action\"</em>", $vars, $this->config["action_path"]);
 		$this->StartLinkTracking();
 		return $result;
 	}
-	function Method($method)
+	
+	function Method( $method )
 	{
-		if (strstr('/', $method))
-		{
-			$method = substr($method, strrpos('/', $method));
-		}
-		if (!$handler = $this->page["handler"]) $handler = "page";
-		$methodLocation = $handler."/".$method.".php";
-		return $this->IncludeBuffered($methodLocation, "<em>Unknown method \"$methodLocation\"</em>", "", $this->config["handler_path"]);
+		if( strstr( '/', $method ) )
+			$method = substr( $method, strrpos( '/', $method ) );
+
+		if( !$handler = $this->page['handler'] ) 
+			$handler = 'page';
+		
+		$methodLocation = $handler . '/' . $method . '.php';
+		
+		return $this->IncludeBuffered( $methodLocation, 
+									  '<!-- <wiki-error>unknown method</wiki-error> --><em>Unknown method "' . $methodLocation . '"</em>', 
+									  '', 
+									  $this->config['handler_path'] );
 	}
-	function Format($text, $formatter="wakka") { return $this->IncludeBuffered($formatter.".php", "<em>Formatter \"$formatter\" not found</em>", compact("text"), $this->config['wikka_formatter_path']); }
+	
+	function Format($text, $formatter="wakka") 
+	{ 
+		return $this->IncludeBuffered($formatter.".php", "<em>Formatter \"$formatter\" not found</em>", compact("text"), $this->config['wikka_formatter_path']); 
+	}
 
 	// USERS
-	function LoadUser($name, $password = 0) { return $this->LoadSingle("select * from ".$this->config['table_prefix']."users where name = '".mysql_real_escape_string($name)."' ".($password === 0 ? "" : "and password = '".mysql_real_escape_string($password)."'")." limit 1"); }
-	function LoadUsers() { return $this->LoadAll("select * from ".$this->config['table_prefix']."users order by name"); }
-	function GetUserName() { if ($user = $this->GetUser()) $name = $user["name"]; else if (!$name = gethostbyaddr($_SERVER["REMOTE_ADDR"])) $name = $_SERVER["REMOTE_ADDR"]; return $name; }
-	function GetUser() { return (isset($_SESSION["user"])) ? $_SESSION["user"] : NULL; }
-	function SetUser($user) { $_SESSION["user"] = $user; $this->SetPersistentCookie("wikka_user_name", $user["name"]); $this->SetPersistentCookie("wikka_pass", $user["password"]); }
-	function LogoutUser() { $_SESSION["user"] = ""; $this->DeleteCookie("wikka_user_name"); $this->DeleteCookie("wikka_pass"); }
-	function UserWantsComments() { if (!$user = $this->GetUser()) return false; return ($user["show_comments"] == "Y"); }
-
+	function LoadUser($name, $password = 0) 
+	{ 
+		return $this->LoadSingle("select * from ".$this->config['table_prefix']."users where name = '".mysql_real_escape_string($name)."' ".($password === 0 ? "" : "and password = '".mysql_real_escape_string($password)."'")." limit 1"); 
+	}
+	
+	function LoadUsers() 
+	{ 
+		return $this->LoadAll("select * from ".$this->config['table_prefix']."users order by name"); 
+	}
+	
+	function GetUserName() 
+	{ 
+		if ($user = $this->GetUser()) 
+			$name = $user["name"]; 
+		
+		else if (!$name = gethostbyaddr($_SERVER["REMOTE_ADDR"])) 
+			$name = $_SERVER["REMOTE_ADDR"]; 
+			
+		return $name; 
+	}
+	
+	function GetUser() 
+	{ 
+		if( !isset( $_SESSION["user"] ) )
+			return NULL;
+		
+		return $_SESSION["user"]; 
+	}
+	
+	function SetUser($user) 
+	{ 
+		$_SESSION["user"] = $user; 
+		$this->SetPersistentCookie("wikka_user_name", $user["name"]); 
+		$this->SetPersistentCookie("wikka_pass", $user["password"]); 
+	}
+	
+	function LogoutUser() 
+	{ 
+		$_SESSION["user"] = ""; 
+		$this->DeleteCookie("wikka_user_name"); 
+		$this->DeleteCookie("wikka_pass"); 
+	}
+	
+	function UserWantsComments() 
+	{ 
+		if (!$user = $this->GetUser()) 
+			return false; 
+		
+		return ($user["show_comments"] == "Y"); 
+	}
 
 	// COMMENTS
 	function LoadComments($tag) { return $this->LoadAll("SELECT * FROM ".$this->config["table_prefix"]."comments WHERE page_tag = '".mysql_real_escape_string($tag)."' ORDER BY time"); }
@@ -843,16 +975,19 @@ class Wakka
 	function UserIsOwner($tag = "")
 	{
 		// check if user is logged in
-		if (!$this->GetUser()) return false;
+		if (!$this->GetUser()) 
+			return false;
 
 		// if user is admin, return true. Admin can do anything!
-		if ($this->IsAdmin()) return true;
+		if ($this->IsAdmin()) 
+			return true;
 
 		// set default tag
-		if (!$tag = trim($tag)) $tag = $this->GetPageTag();
+		if (!$tag = trim($tag)) 
+			$tag = $this->GetPageTag();
 
 		// check if user is owner
-		if ($this->GetPageOwner($tag) == $this->GetUserName()) return true;
+		return ($this->GetPageOwner($tag) == $this->GetUserName());
 	}
 	//returns true if user is listed in configuration list as admin
 	function IsAdmin() {
@@ -863,7 +998,15 @@ class Wakka
 			if (trim($admin) == $this->GetUserName()) return true;
 		}
 	}
-	function GetPageOwner($tag = "", $time = "") { if (!$tag = trim($tag)) $tag = $this->GetPageTag(); if ($page = $this->LoadPage($tag, $time)) return $page["owner"]; }
+	function GetPageOwner($tag = "", $time = "") 
+	{ 
+		if (!$tag = trim($tag)) 
+			$tag = $this->GetPageTag(); 
+	
+		if ($page = $this->LoadPage($tag, $time)) 
+			return $page["owner"]; 
+	}
+	
 	function SetPageOwner($tag, $user)
 	{
 		// check if user exists
@@ -987,15 +1130,26 @@ class Wakka
 	function Run($tag, $method = "")
 	{
 		// do our stuff!
-		if (!$this->method = trim($method)) $this->method = "show";
-		if (!$this->tag = trim($tag)) $this->Redirect($this->Href("", $this->config["root_page"]));
-		if ((!$this->GetUser() && isset($_COOKIE["wikka_user_name"])) && ($user = $this->LoadUser($_COOKIE["wikka_user_name"], $_COOKIE["wikka_pass"]))) $this->SetUser($user);
+		if( !$this->method = trim( $method ) ) 
+			$this->method = "show";
+		
+		if( !$this->tag = trim( $tag ) ) 
+			$this->Redirect( $this->Href( "", $this->config["root_page"] ) );
+		
+		if( (!$this->GetUser() && isset($_COOKIE["wikka_user_name"]) ) && 
+			($user = $this->LoadUser($_COOKIE["wikka_user_name"], $_COOKIE["wikka_pass"]))) 
+			$this->SetUser($user);
+		
 		$this->SetPage($this->LoadPage($tag, (isset($_REQUEST["time"]) ? $_REQUEST["time"] :'')));
 
 		$this->LogReferrer();
+		
 		$this->ACLs = $this->LoadAllACLs($this->tag);
+		
 		$this->ReadInterWikiConfig();
-		if(!($this->GetMicroTime()%3)) $this->Maintenance();
+		
+		if(!($this->GetMicroTime()%3)) 
+			$this->Maintenance();
 
 		if (preg_match('/\.(xml|mm)$/', $this->method))
 		{
@@ -1018,9 +1172,205 @@ class Wakka
 		}
 		else
 		{
-			print($this->Header().$this->Method($this->method).$this->Footer());
+			print $this->Header( );
+			
+			if( $_REQUEST['action'] == 'upload' )
+			{
+				if( $this->page && $this->HasAccess('read') ) 
+				{
+					switch( $this->method )
+					{
+					case 'print.xml':
+					case 'edit':
+						break;
+			
+					default:
+						$this->CheckUploadedFiles( );
+					}
+				}
+			}
+			
+			print $this->Method( $this->method );
+
+			print $this->Footer( );
+		}
+
+	}
+
+	//
+	//
+	//
+	function ListUploadedFiles( $upload_path )
+	{
+    	$num = 0;
+    	
+    	$dir = opendir( $upload_path );
+    	
+    	while( $file = readdir( $dir ) ) 
+    	{
+	        if( $file == '.' || $file == '..' ) 
+	        	continue;
+	        	
+			++$num;
+                
+			if( $this->IsAdmin( ) ) 
+            	$delete_link = '<a href="' . 
+            				   $this->href( 'files.xml', 
+            				   				$this->GetPageTag( ), 
+            				   				'action=delete&amp;file=' . urlencode( $file ) ) . 
+            				   '">x</a>';
+            else 
+            	$delete_link = "";
+            
+            $download_link = '<a href="' . 
+            				 $this->href( 'files.xml', 
+										  $this->GetPageTag( ), 
+            								'action=download&amp;file=' . rawurlencode($file) ) . 
+            				 '">' . $file . '</a>';
+            
+            $size = bytesToHumanReadableUsage( filesize( $upload_path . '/' . $file ) );
+            
+            $date = date( 'n/d/Y g:i a', filemtime( $upload_path . '/' . $file ) );
+
+            print  '<tr>
+					<td valign="top" align="center">&nbsp;&nbsp;' . $delete_link . '&nbsp;&nbsp;</td>
+                    <td valign="top">' . $download_link . '</td>
+					<td valign="top">&nbsp;<font size="-1" color="gray">' . $size . '</font></td>
+					<td valign="top">&nbsp;<font size="-1" color="gray">' . $date . '</font></td>
+					</tr>';
+        }
+    
+    	closedir( $dir );
+
+        return $num;
+    }
+
+	//
+	//
+	//
+	function ShowAttachedFiles( )
+	{
+   		if( !$this->HasAccess('write') )
+   			return;
+   			
+   		$max_upload_size = $this->config[ 'max_upload_size' ];
+
+    	$upload_path = $this->config['upload_path'] . '/'. $this->GetPageTag( );
+    	
+    	$max_upload_size = $this->config[ 'max_upload_size' ];
+    	
+        print  '<table cellspacing="0" cellpadding="0">
+				<tr>
+				<td>&nbsp;</td>
+				<td bgcolor="gray" valign="bottom" align="center"><font color="white" size="-2">Attachment</font></td>
+				<td bgcolor="gray" valign="bottom" align="center"><font color="white" size="-2">Size</font></td>
+				<td bgcolor="gray" valign="bottom" align="center"><font color="white" size="-2">Date Added</font></td>
+				</tr>';
+
+    	// files list
+    	if( is_dir( $upload_path ) )
+    		$files = $this->ListUploadedFiles( $upload_path );
+    	else
+    		$files = 0;
+    	
+    	if( $files == 0 )
+    		print "<tr><td>&nbsp;</td><td colspan='3' align='center'><font color='gray' size='-1'><em>&nbsp;&nbsp;&nbsp;</em></font></td></tr>";
+    	else
+    		print "<tr><td>&nbsp;</td></tr>";
+    	
+		// upload form
+    	if( $max_upload_size > 0 )
+    	{
+    		echo $this->FormOpen( '', '', 'post', 'multipart/form-data' );
+
+        	print  '<tr>
+				<td>&nbsp;</td>
+				<td colspan="4" valign="top" align="right" nowrap><em>
+               	    <input type="hidden" name="action" value="upload"></input>
+					<input type="hidden" name="MAX_FILE_SIZE" value="' . $max_upload_size . '">
+                   	<font color="gray" size="-2">add new attachment:
+					<input type="file" name="file" style="padding: 0px; margin: 0px; font-size: 8px; height: 15px"></input>
+                   	<input type="submit" value="+" style="padding: 0px; margin: 0px; font-size: 8px; height: 15px"></input>
+					</font></em> 
+				</td>
+				</tr>';
+				
+	    	echo $this->FormClose( );
+	    }
+
+		print '</table>';
+	}
+   
+	//
+   	//
+   	//
+	function CheckUploadedFiles( )
+   	{
+		$upload_path = $this->config['upload_path'] . '/' . $this->GetPageTag( );	
+		
+		$max_upload_size = $this->config[ 'max_upload_size' ];
+	    
+	    if( !is_dir( $upload_path ) ) 
+	    	mkdir_r( $upload_path );
+	
+	    // upload action
+	    $uploaded = $_FILES['file'];
+	   
+		switch( $_FILES['file']['error'] )
+		{
+		case 0:
+			if( $_FILES["file"]["size"] > $max_upload_size ) 
+			{
+				echo "<b>Attempted file upload was too big.  Maximum allowed size is " . 
+					 bytesToHumanReadableUsage( $max_upload_size ) . ".</b>"; 
+				 	
+			 	unlink( $uploaded['tmp_name'] );
+			} 
+			else 
+			{	
+				$strippedname = str_replace( "'", '', $uploaded['name'] );
+				$strippedname = stripslashes( $strippedname );
+	
+				$destfile = $upload_path . '/' . $strippedname;
+	
+				if( !file_exists( $destfile ) )
+				{
+					if( move_uploaded_file( $uploaded['tmp_name'], $destfile ) )
+					{
+						// echo( "<b>File was successfully uploaded.</b><br />\n" );
+					}
+					else
+					{
+						echo( "<b>There was an error uploading your file.</b><br />\n" );
+					}
+				}
+				else
+				{
+					echo "<b>There is already a file named \"" . 
+						 $strippedname . 
+						 "\".</b> <br />\nPlease rename before uploading or delete the existing file below.<br />\n";
+				}
+			}
+			
+			break;
+				
+		case 1:
+		case 2: // File was too big.... as reported by the browser, respecting MAX_FILE_SIZE
+			echo "<b>Attempted file upload was too big. Maximum allowed size is " . 
+				 bytesToHumanReadableUsage( $max_upload_size ) . 
+				 ".</b>"; 
+			break;
+		
+		case 3:
+			echo "<b>File upload incomplete! Please try again.</b><br />\n";
+			break;
+			
+		case 4:
+			echo "<b>No file uploaded.</b><br />\n";
+			break;
 		}
 	}
+
 }
 
 // stupid version check
@@ -1098,7 +1448,7 @@ $wakkaDefaultConfig = array(
 
 	"wikiping_server" 		=> "",
 
-	"default_write_acl"		=> "*",
+	"default_write_acl"		=> "+",
 	"default_read_acl"		=> "*",
 	"default_comment_acl"		=> "*");
 
@@ -1178,7 +1528,7 @@ if (!preg_match("/(xml|raw|mm)$/", $method))
 	//Calculate the difference
 	    $totaltime = ($tend - $tstart);
 	//Output result
-	    printf ("<div class=\"smallprint\">Page was generated in %.4f seconds</div>\n</body>\n</html>", $totaltime);
+	    //printf ("<div class=\"smallprint\">Page was generated in %.4f seconds</div>\n</body>\n</html>", $totaltime);
 }
 
 $content =  ob_get_contents();
@@ -1206,3 +1556,5 @@ ob_end_clean();
 echo $page_output;
 
 ?>
+
+   

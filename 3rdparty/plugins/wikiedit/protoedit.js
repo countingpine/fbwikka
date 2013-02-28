@@ -125,16 +125,51 @@ ProtoEdit.prototype.addButton = function (name, desc, actionParams, actionName) 
  this.buttons[i].actionParams = actionParams;
 }
 
-ProtoEdit.prototype.checkKey = function (k) {
-
- if (k==85+4096 || k==73+4096 || k==49+2048 || k==50+2048 || k==51+2048 || k==52+2048 || 
-   k==76+4096 || k==76+2048 || k==78+2048 || k==79+2048 || k==66+2048 || k==83+2048 || 
-   k==85+2048 || k==72+2048 || k==73+2048 || k==74+2048 || k==84+2048 || k==2109 ||
-   k==2124+32 || k==2126+32 || k==2127+32 || k==2114+32 || k==2131+32 ||
-   k==2133+32 || k==2121+32 || k==2120+32 || k==2122+32)
-  return true;
- else
-  return false;
+ProtoEdit.prototype.checkKey = function (k) 
+{
+	switch(k)
+	{
+		case 85+4096:
+		case 73+4096:
+		case 49+2048: 
+		case 50+2048: 
+		case 51+2048: 
+		case 52+2048:
+		case 76+4096: 
+		case 76+2048: 
+		case 78+2048: 
+		case 79+2048: 
+		case 66+2048: 
+		case 83+2048:
+		case 85+2048: 
+		case 72+2048: 
+		case 73+2048: 
+		case 74+2048: 
+		case 84+2048: 
+		case 2109:
+		case 2124+32: 
+		case 2126+32: 
+		case 2127+32: 
+		case 2114+32: 
+		case 2131+32:
+		case 2133+32: 
+		case 2121+32: 
+		case 2120+32: 
+		case 2122+32:
+		case 2161: 
+		case 2162: 
+		case 2163: 
+		case 2164: 
+		case 2165: 
+		case 2166: 
+		case 2167: 
+		case 2168: 
+		case 2169: 
+		case 2170:
+			return true;
+		default:
+			return false;
+	}
 }
 
 ProtoEdit.prototype.addEvent = function (el, evname, func) {

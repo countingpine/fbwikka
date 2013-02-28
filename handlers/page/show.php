@@ -2,13 +2,13 @@
 <?php
 if (!$this->HasAccess("read"))
 {
-	print("<p><em>You aren't allowed to read this page.</em></p></div>");
+	print('<!-- <wiki-error>forbidden</wiki-error> --><p><em>You are not allowed to read this page.</em></p></div>');
 }
 else
 {
 	if (!$this->page)
 	{
-		print("<p>This page doesn't exist yet. Maybe you want to <a href=\"".$this->Href("edit")."\">create</a> it?</p></div>");
+		print('<!-- <wiki-error>not found</wiki-error> --><p>This page doesn\'t exist yet. Maybe you want to <a href="'.$this->Href("edit").'">create</a> it?</p></div>');
 	}
 	else
 	{
@@ -38,6 +38,15 @@ else
 			}
 		}
 		print("</div>");
+
+		if( $this->GetConfigValue( 'show_attached_files' ) == 1 )
+		{
+			print '<div class="commentsheader">';
+			$this->ShowAttachedFiles( );
+			print '</div>';
+			
+		}
+		
 		if ($this->GetConfigValue("hide_comments") != 1)
 		{
 			// load comments for this page

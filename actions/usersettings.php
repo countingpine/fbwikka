@@ -92,7 +92,7 @@ else if ($user = $this->GetUser())
 		<?php
 		if (isset($passerror))
 		{
-			print("<tr><td></td><td><div class=\"error\">".$this->Format($passerror)."</div></td></tr>\n");
+			print('<!-- <wiki-error>invalid username or pwd</wiki-error> --><tr><td></td><td><div class="error">'.$this->Format($passerror)."</div></td></tr>\n");
 		}
 		?>
 		<tr>
@@ -146,13 +146,22 @@ else
 			$confpassword = $_POST["confpassword"];
 
 			// check if name is WikiName style
-			if ($this->ExistsPage($name)) $error = 'Sorry, this ""WikiName"" is reserved for a page. Please choose a different name.';
-			elseif (!$this->IsWikiName($name)) $error = "User name must be WikiName formatted!";
-			elseif (!$email) $error = "You must specify an email address.";
-			elseif (!preg_match("/^.+?\@.+?\..+$/", $email)) $error = "That doesn't quite look like an email address.";
-			elseif ($confpassword != $password) $error = "Passwords didn't match.";
-			elseif (preg_match("/ /", $password)) $error = "Spaces aren't allowed in passwords.";
-			elseif (strlen($password) < 5) $error = "Password too short.";
+			if( isset( $this->config["accept_new_users"] ) && ($this->config["accept_new_users"] == '0') )
+				$error = 'Sorry, no new users are been accepted, please post a message in the Documentation forum requesting for an account, thanks.';
+			elseif ($this->ExistsPage($name)) 
+				$error = 'Sorry, this ""WikiName"" is reserved for a page. Please choose a different name.';
+			elseif (!$this->IsWikiName($name)) 
+				$error = "User name must be WikiName formatted!";
+			elseif (!$email) 
+				$error = "You must specify an email address.";
+			elseif (!preg_match("/^.+?\@.+?\..+$/", $email)) 
+				$error = "That doesn't quite look like an email address.";
+			elseif ($confpassword != $password) 
+				$error = "Passwords didn't match.";
+			elseif (preg_match("/ /", $password)) 
+				$error = "Spaces aren't allowed in passwords.";
+			elseif (strlen($password) < 5) 
+				$error = "Password too short.";
 			else
 			{
 				$this->Query("insert into ".$this->config["table_prefix"]."users set ".
@@ -200,7 +209,7 @@ else
 		<?php
 		if (isset($error))
 		{
-			print("<tr><td></td><td><div class=\"error\">".$this->Format($error)."</div></td></tr>\n");
+			print('<!-- <wiki-error>invalid username or pwd</wiki-error> --><tr><td></td><td><div class="error">'.$this->Format($error)."</div></td></tr>\n");
 		}
 		?>
 		<tr>
@@ -248,7 +257,7 @@ else
             <?php   
             if (isset($newerror))
             {	
-            	print("<tr><td></td><td><div class=\"error\">".$this->Format($newerror)."</div></td></tr>\n");
+            	print('<!-- <wiki-error>invalid username or pwd</wiki-error> --><tr><td></td><td><div class="error">'.$this->Format($newerror)."</div></td></tr>\n");
 		}	
             ?>
 		<tr>
