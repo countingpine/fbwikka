@@ -1,3 +1,42 @@
+<?php
+/**
+ * Open a fullscreen window with an embedded Freemind map
+ * 
+ * @package  3rdParty
+ * @subpackage Freemind
+ * @author	{@link http://wikkawiki.org/JsnX Jason Tourtelotte} (first draft)
+ * @author	{@link http://wikkawiki.org/JavaWoman Marjolein Katsma} (fixed notices, secured parameters, XHTML compliancy)
+ * @license  http://gnu.org/copyleft/gpl.html GNU GPL
+ * @version  $Id: fullscreen.php 385 2007-03-05 06:13:43Z JavaWoman $
+ * @filesource
+ */
+
+/**
+ * Secure replacement for PHP built-in function htmlspecialchars().
+ * 
+ * Copy of Wakka::hsc_secure() - See Wakka.class.php for complete comments.
+ */
+function hsc_secure($string, $quote_style=ENT_COMPAT)
+{
+	// init
+	$aTransSpecchar = array('&' => '&amp;',
+							'"' => '&quot;',
+							'<' => '&lt;',
+							'>' => '&gt;'
+							);			// ENT_COMPAT set
+	if (ENT_NOQUOTES == $quote_style)	// don't convert double quotes
+	{
+		unset($aTransSpecchar['"']);
+	}
+	elseif (ENT_QUOTES == $quote_style)	// convert single quotes as well
+	{
+		$aTransSpecchar["'"] = '&#39;';	// (apos) htmlspecialchars() uses '&#039;'
+	}
+	// return translated string
+	return strtr($string,$aTransSpecchar);
+}
+
+?>
 <?php header("Content-Type: text/html; charset=ISO-8859-1");  ?>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"
    "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
@@ -12,17 +51,10 @@
    <body>
 
 <?php
-
-/* FIXED:
-	- secured $mindmap_url parameter (can't use method from wikka.php...)
-	- secured $height parameter
-	- fixed notices for undefined variables
-	- made floated box at the top valid XHTML
-	should be solved more cleanly later - JavaWoman 2005-01-20
-*/
-
-$mindmap_url = htmlspecialchars(preg_replace('/&amp;/','&',(trim($_REQUEST["url"]))));
-if (isset($_REQUEST["height"])) $height = htmlspecialchars(trim($_REQUEST["height"]));
+#$mindmap_url = hsc_secure(preg_replace('/&amp;/','&',(trim($_REQUEST['url'])))); // duplicates Wakka::cleanUrl()
+#if (isset($_REQUEST['height'])) $height = hsc_secure(trim($_REQUEST['height'])); // more or less equivalent to Wakka::GetSafeVar()
+$mindmap_url = hsc_secure(preg_replace('/&amp;/','&',(trim($_GET['url'])))); #312 // duplicates Wakka::cleanUrl()
+if (isset($_GET['height'])) $height = hsc_secure(trim($_GET['height'])); #312 // more or less equivalent to Wakka::GetSafeVar()
 
 if ($mindmap_url) {
 
