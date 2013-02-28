@@ -14,7 +14,7 @@
  * NOTE 2: no solution for timeout problems with non-existing feeds yet...
  * 
  * @package		Actions
- * @version		$Id: rss.php 340 2007-02-25 16:16:02Z JavaWoman $
+ * @version		$Id: rss.php 836 2007-12-05 04:14:40Z BrianKoontz $
  * @license http://www.gnu.org/copyleft/gpl.html GNU General Public License
  * @filesource
  * 
@@ -94,7 +94,7 @@ if (preg_match("/^(http|https):\/\/([^\\s\"<>]+)$/i", $rss_path))
 	$cached_output .= "</ul>\n";
 	echo $this->ReturnSafeHTML($cached_output);
 } else {
-	echo '<span class="error"><em>Error: Invalid RSS action syntax. <br /> Proper usage: {{rss http://domain.com/feed.xml}} or {{rss url="http://domain.com/feed.xml"}}</em></span>'; # i18n
+	echo '<em class="error">Error: Invalid RSS action syntax. <br /> Proper usage: {{rss http://domain.com/feed.xml}} or {{rss url="http://domain.com/feed.xml"}}</em>'; # i18n
 }
 
 ?>

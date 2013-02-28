@@ -7,7 +7,7 @@
  * @author	{@link http://wikkawiki.org/JsnX Jason Tourtelotte} (first draft)
  * @author	{@link http://wikkawiki.org/JavaWoman Marjolein Katsma} (fixed notices, secured parameters, XHTML compliancy)
  * @license  http://gnu.org/copyleft/gpl.html GNU GPL
- * @version  $Id: fullscreen.php 385 2007-03-05 06:13:43Z JavaWoman $
+ * @version  $Id: fullscreen.php 836 2007-12-05 04:14:40Z BrianKoontz $
  * @filesource
  */
 
@@ -84,7 +84,7 @@ if ($mindmap_url) {
 	print($output);
 
 } else {
-	echo "<span class='error'><em>Error: Invalid MindMap action syntax. <br /> Proper usage: {{mindmap http://domain.com/MapName/mindmap.mm}} or {{mindmap url=\"http://domain.com/MapName/mindmap.mm\"}}</em></span>";
+	echo "<em class='error'>Error: Invalid MindMap action syntax. <br /> Proper usage: {{mindmap http://domain.com/MapName/mindmap.mm}} or {{mindmap url=\"http://domain.com/MapName/mindmap.mm\"}}</em>";
 }
 
 ?>

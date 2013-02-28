@@ -37,7 +37,7 @@ if ($pages = $this->LoadRecentlyChanged())
 {
 	$curday = '';
 	//print feed link icon
-	echo '<p><a href="'.$this->href('recentchanges.xml', $this->page['tag']).'"><img src="images/xml.png" width="36" height="14" alt="XML" /></a></p>'."\n";
+	echo '<p><a href="'.$this->href('recentchanges.xml', $this->page['tag']).'"><img src="images/xml.png" class="icon" width="36" height="14" alt="feed icon" /></a></p>'."\n";
 
 	if ($user = $this->GetUser()) 
 	{
@@ -79,12 +79,12 @@ if ($pages = $this->LoadRecentlyChanged())
 			{
 				$note = '';
 			}
-				echo '&nbsp;&nbsp;&nbsp;&nbsp;('.$this->Link($page['tag'], 'revisions', $timeformatted, 0, 1, sprintf(TITLE_REVISION_LINK, $page['tag'])).') ['.$this->Link($page['tag'], 'history', LABEL_HISTORY, 0, 1, sprintf(TITLE_HISTORY_LINK, $page['tag'])).'] - &nbsp;'.$this->Link($page['tag'], '', '', 0).' '.PAGE_EDITOR_DIVIDER.' '.$page_edited_by.' '.$note.'<br />'."\n";
+				echo '&nbsp;&nbsp;&nbsp;&nbsp;<a class="datetime" href="'.$this->Href('revisions', $page['tag']).'" title="'.sprintf(TITLE_REVISION_LINK, $page['tag']).'">'.$timeformatted.'</a> '.$this->Link($page['tag'], 'revisions', '['.$page['id'].']', 0, 1, sprintf(TITLE_REVISION_LINK, $page['tag'])).' ['.$this->Link($page['tag'], 'history', LABEL_HISTORY, 0, 1, sprintf(TITLE_HISTORY_LINK, $page['tag'])).'] - &nbsp;'.$this->Link($page['tag'], '', '', 0).' '.PAGE_EDITOR_DIVIDER.' '.$page_edited_by.' '.$note.'<br />'."\n";
 		}
 	}
 	if ($readable == 0)
 	{
-		echo '<em>'.NO_READABLE_RECENTLY_CHANGED_PAGES.'</em>';
+		echo '<em class="error">'.NO_READABLE_RECENTLY_CHANGED_PAGES.'</em>';
 	}
 	echo '</span>'."\n";
 
@@ -99,7 +99,7 @@ if ($pages = $this->LoadRecentlyChanged())
 }
 else
 {
-	echo '<em>'.NO_RECENTLY_CHANGED_PAGES.'</em>';
+	echo '<em class="error">'.NO_RECENTLY_CHANGED_PAGES.'</em>';
 }
 
 ?>
