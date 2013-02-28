@@ -39,7 +39,7 @@ error_reporting (E_ALL ^ E_NOTICE);
 /**
  * Defines current version.
  */
-define("WAKKA_VERSION", "1.1.6.0");
+define("WAKKA_VERSION", "1.1.6.1");
 function getmicrotime() {
 	list($usec, $sec) = explode(" ", microtime());
 	return ((float)$usec + (float)$sec);
@@ -1098,7 +1098,7 @@ $wakkaDefaultConfig = array(
 
 	"wikiping_server" 		=> "",
 
-	"default_write_acl"		=> "*",
+	"default_write_acl"		=> "+",
 	"default_read_acl"		=> "*",
 	"default_comment_acl"		=> "*");
 
