@@ -50,7 +50,8 @@ error_reporting (E_ALL ^ E_NOTICE);
  * Internationalization constant.
  */
 if (!defined('ERROR_WAKKA_LIBRARY_MISSING')) define('ERROR_WAKKA_LIBRARY_MISSING','The necessary file "libs/Wakka.class.php" could not be found. To run Wikka, please make sure the file exists and is placed in the right directory!');
-if (!defined('ERROR_WRONG_PHP_VERSION')) define('ERROR_WRONG_PHP_VERSION', '$_REQUEST[] not found. Wakka requires PHP 4.1.0 or higher!');
+define('ERROR_WRONG_PHP_VERSION', 'Wikka requires PHP %s or higher!');	// %s - version number
+define('MINIMUM_PHP_VERSION', '4.1');
 if (!defined('ERROR_MYSQL_SUPPORT_MISSING')) define('ERROR_MYSQL_SUPPORT_MISSING', 'PHP can\'t find MySQL support but Wikka requires MySQL. Please check the output of <tt>phpinfo()</tt> in a php document for MySQL support: it needs to be compiled into PHP, the module itself needs to be present in the expected location, <strong>and</strong> php.ini needs to have it enabled.<br />Also note that you cannot have <tt>mysqli</tt> and <tt>mysql</tt> support both enabled at the same time.<br />Please double-check all of these things, restart your webserver after any fixes, and then try again!');
 if (!defined('ERROR_SETUP_FILE_MISSING')) define('ERROR_SETUP_FILE_MISSING', 'A file of the installer/ upgrader was not found. Please install Wikka again!');
 if (!defined('ERROR_SETUP_HEADER_MISSING')) define('ERROR_SETUP_HEADER_MISSING', 'The file "setup/header.php" was not found. Please install Wikka again!');
@@ -64,7 +65,7 @@ if (!defined('WIKI_UPGRADE_NOTICE')) define('WIKI_UPGRADE_NOTICE', 'This site is
 /**
  * Defines the current Wikka version. Do not change the version number or you will have problems upgrading.
  */
-if (!defined('WAKKA_VERSION')) define('WAKKA_VERSION', '1.1.6.4');
+if (!defined('WAKKA_VERSION')) define('WAKKA_VERSION', '1.1.6.5');
 
 /**#@+
  * Simple constant. May be made a configurable value.
@@ -81,10 +82,13 @@ define('ID_LENGTH',10);			// @@@ maybe make length configurable
 
 // Sanity checks - we die if these conditions aren't met
 
-// stupid version check
-if (!isset($_REQUEST))
+// More intelligent version check, more intelligently placed ;)
+if (!function_exists('version_compare') ||
+	version_compare(phpversion(),MINIMUM_PHP_VERSION,'<')	// < PHP minimum version??
+   )
 {
-	die(ERROR_WRONG_PHP_VERSION); // TODO replace with php version_compare
+	$php_version_error = sprintf(ERROR_WRONG_PHP_VERSION,MINIMUM_PHP_VERSION);
+	die($php_version_error);		# fatalerror	!!! default error in English
 }
 // MySQL needs to be installed and available
 // @@@ message could be refined by detecting detect OS (mention module name) and maybe server name
@@ -157,6 +161,7 @@ if (! function_exists('mkdir_r')) {
  */
 if (file_exists('libs/Wakka.class.php'))
 {
+	require_once('libs/Compatibility.lib.php');
 	require_once('libs/Wakka.class.php');
 }
 else
@@ -358,6 +363,9 @@ if ($wakkaConfig['wakka_version'] !== WAKKA_VERSION)
 /**
  * Start session.
  */
+$base_url_path = preg_replace('/wikka\.php/', '', $_SERVER['SCRIPT_NAME']);
+$wikka_cookie_path = ('/' == $base_url_path) ? '/' : substr($base_url_path,0,-1);
+session_set_cookie_params(0, $wikka_cookie_path);
 session_name(md5(BASIC_COOKIE_NAME.$wakkaConfig['wiki_suffix']));
 session_start();
 
@@ -396,7 +404,7 @@ if ((strtolower($page) == $page) && (isset($_SERVER['REQUEST_URI']))) #38
 /**
  * Create Wakka object
  */
-$wakka =& new Wakka($wakkaConfig);
+$wakka = instantiate('Wakka',$wakkaConfig);
 
 /**
  * Check for database access.
@@ -471,50 +479,4 @@ ob_end_clean();
  * Output the page.
  */
 echo $page_output;
-
-
-// ----------------------------------------------
-// Utility and compatibility functions
-// ----------------------------------------------
-
-/**
- * Calculate page generation time.
- */
-function getmicrotime() {
-	list($usec, $sec) = explode(" ", microtime());
-	return ((float)$usec + (float)$sec);
-}
-
-if (!function_exists('mysql_real_escape_string'))
-{
-	/**
-	 * Escape special characters in a string for use in a SQL statement.
-	 *
-	 * This function is added for back-compatibility with MySQL 3.23.
-	 * @param string $string the string to be escaped
-	 * @return string a string with special characters escaped
-	 */
-	function mysql_real_escape_string($string)
-	{
-		return mysql_escape_string($string);
-	}
-}
-
-/**
- * Workaround for the amazingly annoying magic quotes.
- */
-function magicQuotesWorkaround(&$a)
-{
-	if (is_array($a))
-	{
-		foreach ($a as $k => $v)
-		{
-			if (is_array($v))
-				magicQuotesWorkaround($a[$k]);
-			else
-				$a[$k] = stripslashes($v);
-		}
-	}
-}
-
 ?>
