@@ -8,7 +8,8 @@ if (!defined('ERROR_COMMENT_INVALID_KEY')) define('ERROR_COMMENT_INVALID_KEY', "
 
 $redirectmessage = '';
 
-if (($this->HasAccess('comment') || $this->IsAdmin()) && $this->existsPage($this->tag))
+$parent_id = (int) trim($this->GetSafeVar('comment_id', 'post'));
+if ((($this->HasAccess('comment_read') && $this->HasAccess('comment_post')) || $this->IsAdmin()) && $this->existsPage($this->GetPageTag()))
 {
 	$body = trim($this->GetSafeVar('body', 'post'));
 
@@ -20,8 +21,8 @@ if (($this->HasAccess('comment') || $this->IsAdmin()) && $this->existsPage($this
 	$urlcount = preg_match_all('/\b[a-z]+:\/\/\S+/',$body,$dummy);
 	# prevent problems when counting fails
 	if (FALSE === $urlcount) $urlcount = 0;
-	$maxurls  = $this->config['max_new_comment_urls'];
-	$logging  = ($this->config['spam_logging'] == '1');
+	$maxurls  = $this->GetConfigValue('max_new_comment_urls');
+	$logging  = ($this->GetConfigValue('spam_logging') == '1');
 
 	if ('' == $body) #check if comment is non-empty
 	{
@@ -39,7 +40,7 @@ if (($this->HasAccess('comment') || $this->IsAdmin()) && $this->existsPage($this
 	}
 
 	# Apply content filter if configured
-	else if ($this->config['content_filtering'] == "1" && $this->hasBadWords($body))
+	else if ($this->GetConfigValue('content_filtering') == "1" && $this->hasBadWords($body))
 	{
 		$redirectmessage = 'Content not acceptable - please reformulate your comment!';
 		if ($logging)
@@ -53,14 +54,14 @@ if (($this->HasAccess('comment') || $this->IsAdmin()) && $this->existsPage($this
 	else
 	{
 		$body = nl2br($this->htmlspecialchars_ent($body));
-		$this->SaveComment($this->tag, $body);
+		$this->SaveComment($this->GetPageTag(), $body, $parent_id);
 	}
 
 	// log failed attempt
 	if ($failed && $logging)
 	{
 		// log failed attempt
-		$this->logSpamComment($this->tag,$body,$reason,$urlcount);
+		$this->logSpamComment($this->GetPageTag(),$body,$reason,$urlcount);
 	}
 	
 	// redirect to parent page

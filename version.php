@@ -24,12 +24,12 @@
  * version number might result in problems upgrading...please use
  * caution.
  */
-$svn_version = '1.3.2';
+$svn_version = '1.3.3';
 if (!defined('WAKKA_VERSION')) define('WAKKA_VERSION', $svn_version);
 
 /**
  * Defines the current Wikka patch level. This should be 0 by default, 
  * and does not need to be changed for major/minor releases.
  */
-if(!defined('WIKKA_PATCH_LEVEL')) define('WIKKA_PATCH_LEVEL', '7');
+if(!defined('WIKKA_PATCH_LEVEL')) define('WIKKA_PATCH_LEVEL', '0');
 ?>

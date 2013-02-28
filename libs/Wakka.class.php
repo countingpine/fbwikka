@@ -292,7 +292,7 @@ class Wakka
 			ob_end_clean();
 			die("Query failed: ".$query." (".mysql_error().")"); #i18n
 		}
-		if ($object && $this->config['sql_debugging'])
+		if ($object && $this->GetConfigValue('sql_debugging'))
 		{
 			$time = $this->GetMicroTime() - $start;
 			$this->queryLog[] = array(
@@ -632,7 +632,6 @@ class Wakka
 		require_once $safehtml_classpath;
 
 		// Instantiate the handler
-		#$safehtml =& new safehtml();
 		$safehtml = instantiate('safehtml');
 
 		$filtered_output = $safehtml->parse($html);
@@ -962,7 +961,7 @@ class Wakka
 	{
 		// create GeSHi object
 		include_once($this->GetConfigValue('geshi_path').DIRECTORY_SEPARATOR.'geshi.php');
-		$geshi =& new GeSHi($sourcecode, $language, $this->GetConfigValue('geshi_languages_path'));				# create object by reference
+		$geshi = instantiate('GeSHi', $sourcecode, $language, $this->GetConfigValue('geshi_languages_path'));				# create object by reference
 
 		$geshi->enable_classes();								# use classes for hilighting (must be first after creating object)
 		$geshi->set_overall_class('code');						# enables using a single stylesheet for multiple code fragments
@@ -1218,6 +1217,13 @@ class Wakka
 	 * @version		0.7
 	 *
 	 * @access		private
+	 *
+	 * @uses      DEFAULT_SPAMLOG_PATH
+	 * @uses      Config::$spamlog_path
+	 * @uses      Wakka::appendFile()
+	 * @uses      Wakka::GetUserName()
+	 * @uses      Wakka::htmlspecialchars_ent()
+	 *
 	 * @todo		- make recognition of mass delete i18n-proof
 	 *				- use configured (later!) timezone
 	 *				- use configured (later!) date/time format
@@ -1234,7 +1240,7 @@ class Wakka
 	function logSpam($type,$tag,$body,$reason,$urlcount,$user='',$time='')
 	{
 		// set path
-		$spamlogpath = (isset($this->config['spamlog_path'])) ? $this->config['spamlog_path'] : DEF_SPAMLOG_PATH;	# @@@ make function
+		$spamlogpath = $this->GetConfigValue('spamlog_path', DEFAULT_SPAMLOG_PATH);
 		// gather data
 		if ($user == '')
 		{
@@ -1258,7 +1264,7 @@ class Wakka
 		$sig		= SPAMLOG_SIG.' '.$type.' '.$time.' '.$tag.' - '.$originip.' - '.$user.' '.$ua.' - '.$reason.' - '.$urlcount."\n";
 		$content	= $sig.$body."\n\n";
 
-		// add data to log			@@@ use appendFile
+		// add data to log	
 		return $this->appendFile($spamlogpath,$content);	# nr. of bytes written if successful, FALSE otherwise
 	}
 
@@ -1270,6 +1276,9 @@ class Wakka
 	 * @license		http://www.gnu.org/copyleft/lesser.html GNU Lesser General Public License
 	 * @version		0.3
 	 *
+	 * @uses      DEFAULT_SPAMLOG_PATH
+	 * @uses      Config::$spamlog_path
+	 *
 	 * @access		public
 	 *
 	 * @return		array		array with associative array for each metadata item in a line
@@ -1277,7 +1286,7 @@ class Wakka
 	function getSpamlogSummary()
 	{
 		// set path
-		$spamlogpath = (isset($this->config['spamlog_path'])) ? $this->config['spamlog_path'] : DEF_SPAMLOG_PATH;	# @@@ make function
+		$spamlogpath = $this->GetConfigValue('spamlog_path', DEFAULT_SPAMLOG_PATH);
 		$aSummary = array();
 		$aLines = file($spamlogpath);						# get file as array so we can...
 		foreach ($aLines as $line)							# ... select the metadata
@@ -1482,7 +1491,7 @@ class Wakka
 			if ($page=="cached_nonexistent_page") return null;
 		}
 		// load page
-		if (!isset($page)) $page = $this->LoadSingle("select * from ".$this->config["table_prefix"]."pages where tag = '".mysql_real_escape_string($tag)."' ".($time ? "and time = '".mysql_real_escape_string($time)."'" : "and latest = 'Y'")." limit 1");
+		if (!isset($page)) $page = $this->LoadSingle("select * from ".$this->GetConfigValue('table_prefix')."pages where tag = '".mysql_real_escape_string($tag)."' ".($time ? "and time = '".mysql_real_escape_string($time)."'" : "and latest = 'Y'")." limit 1");
 		// cache result
 		if ($page && !$time) {
 			$this->pageCache[$page["tag"]] = $page;
@@ -1633,7 +1642,6 @@ class Wakka
 	 * @uses	Config::$pagename_case_sensitive
 	 * @uses	Config::$table_prefix
 	 * @uses	Wakka::GetConfigValue()
-	 * @uses	Wakka::$specialCache
 	 * @uses	Wakka::LoadSingle()
 	 *
 	 * @param	string	$tag	The name of the page to load oldest revision of.
@@ -1890,6 +1898,8 @@ class Wakka
 					$owner = $oldPage['owner'];
 				}
 			}
+			// Parse page title
+			$page_title = $this->ParsePageTitle($body);
 
 			// set all other revisions to old
 			$this->Query("
@@ -1902,6 +1912,7 @@ class Wakka
 			$this->Query("
 				INSERT INTO ".$this->GetConfigValue('table_prefix')."pages
 				SET	tag		= '".mysql_real_escape_string($tag)."',
+				  title = '".mysql_real_escape_string($page_title)."',
 					time	= now(),
 					owner	= '".mysql_real_escape_string($owner)."',
 					user	= '".mysql_real_escape_string($user)."',
@@ -1947,12 +1958,12 @@ class Wakka
 			// Should work with any browser/entity conversion scheme
 			$search_phrase = mysql_real_escape_string($phrase);
 			if ( 1 == $caseSensitive ) $id = ', id';
-			$sql  = "select * from ".$this->config['table_prefix']."pages where latest = ".  "'Y'" ." and match(tag, body".$id.") against(". "'$search_phrase'" ." IN BOOLEAN MODE) order by time DESC";
+			$sql  = "select * from ".$this->GetConfigValue('table_prefix')."pages where latest = ".  "'Y'" ." and match(tag, body".$id.") against(". "'$search_phrase'" ." IN BOOLEAN MODE) order by time DESC";
 		}
 		else
 		{
 			$search_phrase = mysql_real_escape_string($phrase);
-			$sql  = "select * from ".$this->config['table_prefix']."pages WHERE latest = ". "'Y'";
+			$sql  = "select * from ".$this->GetConfigValue('table_prefix')."pages WHERE latest = ". "'Y'";
 			foreach( explode(' ', $search_phrase) as $term ) 
 				$sql .= " AND ((`tag` LIKE '%{$term}%') OR (body LIKE '%{$term}%'))";
 		}
@@ -1968,7 +1979,7 @@ class Wakka
 	 */
 	function FullCategoryTextSearch($phrase)
 	{
-		return $this->LoadAll("select * from ".$this->config["table_prefix"]."pages where latest = 'Y' and match(body) against('".mysql_real_escape_string($phrase)."' IN BOOLEAN MODE)");
+		return $this->LoadAll("select * from ".$this->GetConfigValue('table_prefix')."pages where latest = 'Y' and match(body) against('".mysql_real_escape_string($phrase)."' IN BOOLEAN MODE)");
 	}
 
 	/**#@-*/
@@ -2086,23 +2097,53 @@ class Wakka
 	 *	and is not the current page that's loaded
 	 *
 	 * @uses	Wakka::GetPageTag()
+	 * @uses	Wakka::HasPageTitle()
+	 * @uses	Wakka::$page_title
+	 * @uses	Wakka::LoadSingle()
+	 *
 	 *
 	 * @param	string	@tag	optional: page to get title for (default current page)
-	 * @return	mixed	the title of the current page or NULL if none found
-	 * @todo	it would be more appropriate if SetPageTitle() received only
-	 *			already text-only titles, or did the conversion itself: derive once,
-	 *			use many times. It should not be necessary to do any "cleaning" here!
+	 * @return	mixed	the title of the current page or the page name if none found, trimmed
 	 */
-	function PageTitle()
+	function PageTitle($tag=null)
 	{
-		$title = '';
-		$pagecontent = $this->page['body'];
-		if (ereg( "(=){3,5}([^=\n]+)(=){3,5}", $pagecontent, $title)) {
-			$formatting_tags = array("**", "//", "__", "##", "''", "++", "#%", "@@", "\"\"");
-			$title = str_replace($formatting_tags, "", $title[2]);
+		if ($tag === null)
+		{
+			$tag = $this->GetPageTag();
 		}
-		if ($title) return strip_tags($this->Format($title));				# fix for forced links in heading
-		else return $this->GetPageTag();
+		if ($this->HasPageTitle() && $tag == $this->GetPageTag())
+		{
+			return $this->page_title;
+		}
+		$query = "SELECT title FROM ".
+				$this->GetConfigValue('table_prefix').
+				"pages WHERE tag = '".
+				mysql_real_escape_string($tag).
+				"' AND LATEST = 'Y'";
+		$res = $this->LoadSingle($query);
+		$page_title = trim($res['title']) !== '' ? $res['title'] : $tag;
+		return trim($page_title);
+	}
+
+	/**
+	 * Parses the body of a page for a page title
+	 *
+	 * Searches for first instance of header markup in page body and
+	 * returns this string as the page title, or empty if none found
+	 *
+	 * @param body string page body
+	 * @return string the title of the current page, or empty string
+	 */
+	function ParsePageTitle($body)
+	{
+		$page_title = '';
+		if (preg_match("#(={3,6})([^=].*?)\\1#s", $body, $matches))
+		{
+			list($h_fullmatch, $h_markup, $h_heading) = $matches;
+			$page_title = $h_heading;
+		}
+		// We need trim because $this->Format() appends a carriage return
+		return trim(strip_tags($this->Format($page_title)));
 	}
 
 	/**
@@ -2135,7 +2176,7 @@ class Wakka
 	{
 		// init
 		$count = 0;
-		$table_prefix = (empty($prefix) && isset($this)) ? $this->config['table_prefix'] : $prefix;
+		$table_prefix = (empty($prefix) && isset($this)) ? $this->GetConfigValue('table_prefix') : $prefix;
 		if (is_null($dblink))
 		{
 			$dblink = $this->dblink;
@@ -2312,9 +2353,8 @@ class Wakka
 	 * Gather the necessary parameters for WikiPing.
 	 *
 	 * @uses	Wakka::Href()
-	 * @uses	Wakka::GetConfigValue()
+	 * @uses	Wakka::GetWakkaName()
 	 * @uses	Wakka::LoadPage()
-	 * @uses	Config::$wakka_name
 	 *
 	 * @param	string	$server	mandatory:
 	 * @param	string	$tag	mandatory:
@@ -2343,7 +2383,7 @@ class Wakka
 			{
 				return FALSE;
 			}
-			if (!$ping['wiki'] = $this->GetConfigValue('wakka_name')) // set site-name
+			if (!$ping['wiki'] = $this->GetWakkaName()) // set site-name
 			{
 				return FALSE;
 			}
@@ -2390,8 +2430,8 @@ class Wakka
 	 */
 	function SetSessionCookie($name, $value)
 	{
-		SetCookie($name.$this->config['wiki_suffix'], $value, 0, $this->wikka_cookie_path);
-		$_COOKIE[$name.$this->config['wiki_suffix']] = $value;
+		SetCookie($name.$this->GetConfigValue('wiki_suffix'), $value, 0, $this->wikka_cookie_path);
+		$_COOKIE[$name.$this->GetConfigValue('wiki_suffix')] = $value;
 		$this->cookies_sent = TRUE;
 	}
 
@@ -2404,8 +2444,8 @@ class Wakka
 	 */
 	function SetPersistentCookie($name, $value)
 	{
-		SetCookie($name.$this->config['wiki_suffix'], $value, time() + $this->cookie_expiry, $this->wikka_cookie_path);
-		$_COOKIE[$name.$this->config['wiki_suffix']] = $value;
+		SetCookie($name.$this->GetConfigValue('wiki_suffix'), $value, time() + $this->cookie_expiry, $this->wikka_cookie_path);
+		$_COOKIE[$name.$this->GetConfigValue('wiki_suffix')] = $value;
 		$this->cookies_sent = TRUE;
 	}
 
@@ -2417,8 +2457,8 @@ class Wakka
 	 */
 	function DeleteCookie($name)
 	{
-		SetCookie($name.$this->config['wiki_suffix'], "", 1, $this->wikka_cookie_path);
-		$_COOKIE[$name.$this->config['wiki_suffix']] = "";
+		SetCookie($name.$this->GetConfigValue('wiki_suffix'), "", 1, $this->wikka_cookie_path);
+		$_COOKIE[$name.$this->GetConfigValue('wiki_suffix')] = "";
 		$this->cookies_sent = TRUE;
 	}
 
@@ -2429,9 +2469,9 @@ class Wakka
 	 */
 	function GetCookie($name)
 	{
-		if (isset($_COOKIE[$name.$this->config['wiki_suffix']]))
+		if (isset($_COOKIE[$name.$this->GetConfigValue('wiki_suffix')]))
 		{
-			return $_COOKIE[$name.$this->config['wiki_suffix']];
+			return $_COOKIE[$name.$this->GetConfigValue('wiki_suffix')];
 		}
 		else
 		{
@@ -2499,8 +2539,8 @@ class Wakka
 		{
 			$_SESSION['redirectmessage'] = $message;
 		}
-		$url = ($url == '' ) ? $this->wikka_url.$this->tag : $url;
-		if ((eregi('IIS', $_SERVER['SERVER_SOFTWARE'])) && ($this->cookies_sent))
+		$url = ($url == '' ) ? $this->wikka_url.$this->GetPageTag() : $url;
+		if ((preg_match('/IIS/i', $_SERVER['SERVER_SOFTWARE'])) && ($this->cookies_sent))
 		{
 			@ob_end_clean();
 			die('<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
@@ -2524,7 +2564,7 @@ class Wakka
 	 */
 	function MiniHref($handler='', $tag='')
 	{
-		if (!$tag = trim($tag)) $tag = $this->tag;
+		if (!$tag = trim($tag)) $tag = $this->GetPageTag();
 		$tag = preg_replace('/\s+/', '_', $tag);
 		return $tag.($handler ? "/".$handler : "");
 	}
@@ -2659,6 +2699,126 @@ class Wakka
 	}
 
 	/**
+	 * Takes an array of pages returned by LoadAll() and renders it as a table or unordered list.
+	 *
+	 * @author		{@link http://wikkawiki.org/DotMG DotMG}
+	 *
+	 * @access		public
+	 * @uses	Wakka::Link()
+	 * @uses	Wakka::PageTitle()
+	 *
+	 * @param	mixed	$pages			required: Array of pages returned by LoadAll
+	 * @param	array $array_param An associative array representing the options to pass to the function ListPages
+	 *         The following keys are currently supported :
+	 *            nopagesText: Text to display when the list is empty, default: empty string
+	 *            class: a space separated list of classNames used for styling the enclosing div or table tag
+	 *            compact: If 0, use table; if 1: use unordered list. Default: 0
+	 *            columns: If compact = 0, number of columns of the table. Default: 3
+	 *            show_edit_link: If true, each page is followed by an edit link. Default: false.
+	 *            show_page_title: If true, show the title of the page after the page name. Default: true.
+	 *            sort: Should the data be sorted before being listed? Default: no (no sorting)
+	 *  Other possible values for sort: 
+	 *   ignore_case ou ksort: sort page names, ignoring case
+	 *   reverse ou rsort: sort in reverse order, not ignoring case
+	 *   ignore_case_reverse ou krsort: sort in reverse order, not ignoring case
+	 * @return	string	formated array contents
+	 * @todo	Use as a wrapper for the new array functions - avoiding table layout and enhancing scannability of the result!!!
+	 */
+	function ListPages($pages, $array_param=array())
+	{
+		$defaut_options = array(
+				'nopagesText' => '',
+				'class' => '',
+				'compact' => 0,
+				'columns' => 3,
+				'show_edit_link' => false,
+				'show_page_title' => true,
+				'sort' => 'no');
+		$options = array_merge($defaut_options, $array_param);
+
+		$output_edit_link = '';
+		$output_page_title = '';
+		$output_body = '';
+		$class = '';
+
+		if (!$pages)
+		{
+			return ($options['nopagesText']);
+		}
+		if ($options['class'])
+		{
+			$class = ' class="'.str_replace('"', '', $options['class']).'"';
+		}
+		if ($options['compact'])
+		{
+			$output_start = "\n<div".$class.'><ul>';
+			$output_end = '</ul></div>';
+		}
+		else
+		{
+			$output_start = '<table '.$class.'><tr>';
+			$output_end = '</tr></table>';
+		}
+		// sorting
+		foreach ($pages as $page)
+		{
+			$k = strtolower($page['page_tag']);
+			$list[strtolower($k)] = $page['page_tag'];
+		}
+		switch ($options['sort'])
+		{
+			case 'ignore_case': case 'ksort':
+				ksort($list);
+				break;
+			case 'no': case false: case 0:
+				break;
+			case 'reverse': case 'rsort':
+				rsort($list);
+				break;
+			case 'ignore_case_reverse': case 'krsort':
+				krsort($list);
+				break;
+			default:
+				sort($list);
+		}
+		$count = 0;
+		foreach ($list as $val)
+		{
+			if ($options['show_edit_link'])
+			{
+				$output_edit_link = ' <small>['.$this->Link($val, 'edit', WIKKA_PAGE_EDIT_LINK_DESC, false, true, sprintf(WIKKA_PAGE_EDIT_LINK_TITLE, $val)).']</small>';
+			}
+			if ($options['show_page_title'])
+			{
+				$output_page_title = ' <span class="pagetitle">['.$this->PageTitle($val).']</span>';
+			}
+			if ($options['compact'])
+			{
+				$text = preg_replace('!^Category!i', '', $val);
+				$output_link = $this->Link($val, '', $text);
+				$output_item_sep_begin = "\n <li>";
+				$output_item_sep_end = "</li>";
+				$output_body .= $output_item_sep_begin.$output_link.$output_edit_link.$output_page_title.$output_item_sep_end;
+			}
+			else
+			{
+				if ($count == intval($options['columns']))
+				{
+					$output_body .= '</tr><tr>';
+					$count = 0;
+				}
+				$output_link = $this->Link($val);
+				$output_item_sep_begin = "\n <td>";
+				$output_item_sep_end = "</td>";
+				$output_body .= $output_item_sep_begin.$output_link.$output_edit_link.$output_page_title.$output_item_sep_end;
+			}
+			$count ++;
+		}
+		return $output_start.$output_body.$output_end;
+	}
+
+
+	/**
 	 * Create a href for a static file.
 	 *
 	 * It takes a parameter $filepath, the path of the static file, and returns
@@ -2787,7 +2947,7 @@ class Wakka
 		$this->Query("
 			DELETE
 			FROM ".$this->GetConfigValue('table_prefix')."links
-			WHERE from_tag = '".mysql_real_escape_string($this->tag)."'"
+			WHERE from_tag = '".mysql_real_escape_string($this->GetPageTag())."'"
 			);
 		// build and insert new entries for current page in link table
 		if ($linktable = $this->GetLinkTable())
@@ -3217,7 +3377,7 @@ class Wakka
 		if (!$tag = trim($tag))
 		{
 			#$tag = $this->GetPageTag();
-			$tag = $this->tag;
+			$tag = $this->GetPageTag();
 		}
 		#if (!$referrer = trim($referrer)) $referrer = $_SERVER["HTTP_REFERER"]; NOTICE
 		if (empty($referrer))
@@ -3345,7 +3505,7 @@ class Wakka
 		}
 		$result =
 		$this->IncludeBuffered(strtolower($action_name).DIRECTORY_SEPARATOR.strtolower($action_name).'.php',
-		sprintf(T_("Unknown action \"%s\""), '"'.$action_name.'"'), $vars, $this->config['action_path']);
+		sprintf(T_("Unknown action \"%s\""), '"'.$action_name.'"'), $vars, $this->GetConfigValue('action_path'));
 		if ($link_tracking_state)
 		{
 			$this->StartLinkTracking();
@@ -3393,7 +3553,7 @@ class Wakka
 			$handler = strtolower($handler);
 		}
 		$handlerLocation = $handler.DIRECTORY_SEPARATOR.$handler.'.php';	#89
-                $tempOutput = $this->IncludeBuffered($handlerLocation, '', '', $this->config['handler_path']);
+                $tempOutput = $this->IncludeBuffered($handlerLocation, '', '', $this->GetConfigValue('handler_path'));
                 if (FALSE===$tempOutput)
                 {
                         return $this->wrapHandlerError(sprintf(T_("Sorry, %s is an unknown handler."), '"'.$handlerLocation.'"'));
@@ -3614,7 +3774,7 @@ class Wakka
 	{
 		return $this->LoadSingle("
 			SELECT *
-			FROM ".$this->config['table_prefix']."users
+			FROM ".$this->GetConfigValue('table_prefix')."users
 			WHERE name = '".mysql_real_escape_string($name)."' ".($password === 0 ? "" : "and password = '".mysql_real_escape_string($password)."'")."
 			LIMIT 1"
 			);
@@ -3711,7 +3871,7 @@ class Wakka
 		$this->DeleteCookie('user_name');
 		$this->DeleteCookie('pass');
 		// Delete this session from sessions table
-		$this->Query("DELETE FROM ".$this->config['table_prefix']."sessions WHERE userid='".$this->GetUserName()."' AND sessionid='".session_id()."'");
+		$this->Query("DELETE FROM ".$this->GetConfigValue('table_prefix')."sessions WHERE userid='".$this->GetUserName()."' AND sessionid='".session_id()."'");
 		$_SESSION['user'] = '';
 		// This seems a good as place as any to purge all session records
 		// older than PERSISTENT_COOKIE_EXPIRY, as this is not a
@@ -3956,7 +4116,7 @@ class Wakka
 	 */
 	function loadCommentId($comment_id)
 	{
-		return $this->LoadSingle("SELECT * FROM ".$this->config["table_prefix"]."comments WHERE id = '".$comment_id."'");
+		return $this->LoadSingle("SELECT * FROM ".$this->GetConfigValue('table_prefix')."comments WHERE id = '".$comment_id."'");
 	}
 
 	/**
@@ -4194,7 +4354,7 @@ class Wakka
 	 */
 	function deleteComment($comment_id)
 	{
-		$rc = $this->Query("DELETE FROM ".$this->config["table_prefix"]."comments ".
+		$rc = $this->Query("DELETE FROM ".$this->GetConfigValue('table_prefix')."comments ".
 							"WHERE id = '".$comment_id."'");
 		return $rc;
 	}
@@ -4541,13 +4701,17 @@ class Wakka
 	 * @license		http://www.gnu.org/copyleft/lesser.html GNU Lesser General Public License
 	 * @version		0.5
 	 *
+	 * @uses      DEFAULT_BADWORDS_PATH
+	 * @uses      Config::$badwords_path
+	 * @uses      Wakka::normalizeLines()
+	 *
 	 * @access		public
 	 *
 	 * @return		mixed		normalized file content (sorted) if found, FALSE if not
 	 */
 	function readBadWords()
 	{
-		$badwordspath = (isset($this->config['badwords_path'])) ? $this->config['badwords_path'] : DEF_BADWORDS_PATH;	# @@@ make function
+		$badwordspath = $this->GetConfigValue('badwords_path', DEFAULT_BADWORDS_PATH);
 		if (file_exists($badwordspath))
 		{
 			$aBadWords = file($badwordspath);				# get file as array so we can...
@@ -4579,6 +4743,10 @@ class Wakka
 	 * @license		http://www.gnu.org/copyleft/lesser.html GNU Lesser General Public License
 	 * @version		0.6
 	 *
+	 * @uses      DEFAULT_BADWORDS_PATH
+	 * @uses      Config::$badwords_path
+	 * @uses      Wakka::writeFile()
+	 *
 	 * @access		public
 	 * @uses		writeFile()
 	 *
@@ -4587,7 +4755,7 @@ class Wakka
 	 */
 	function writeBadWords($lines)
 	{
-		$badwordspath = (isset($this->config['badwords_path'])) ? $this->config['badwords_path'] : DEF_BADWORDS_PATH;	# @@@ make function
+		$badwordspath = $this->GetConfigValue('badwords_path', DEFAULT_BADWORDS_PATH);
 		$rc = FALSE;
 		if (file_exists($badwordspath))
 		{
@@ -4754,7 +4922,7 @@ class Wakka
 				WHERE time < date_sub(now(), interval '".mysql_real_escape_string($days)."' day)
 					AND latest = 'N'"
 				);
-			$this->Query("delete from ".$this->config["table_prefix"]."pages where time < date_sub(now(), interval '".mysql_real_escape_string($days)."' day) and latest = 'N'");
+			$this->Query("delete from ".$this->GetConfigValue('table_prefix')."pages where time < date_sub(now(), interval '".mysql_real_escape_string($days)."' day) and latest = 'N'");
 		}
 	}
 
@@ -4815,47 +4983,47 @@ class Wakka
 		$this->SetPage($this->LoadPage($tag, $this->GetSafeVar('time', 'get'))); #312
 
 		$this->LogReferrer();
-		$this->ACLs = $this->LoadAllACLs($this->tag);
+		$this->ACLs = $this->LoadAllACLs($this->GetPageTag());
 		$this->ReadInterWikiConfig();
 		if(!($this->GetMicroTime()%3)) $this->Maintenance();
 
-		if (preg_match('/\.(xml|mm)$/', $this->handler))
+		if (preg_match('/\.(xml|mm)$/', $this->GetHandler()))
 		{
 			header('Content-type: text/xml');
-			print($this->handler($this->handler));
+			print($this->handler($this->GetHandler()));
 		}
 		// raw page handler
-		elseif ($this->handler == "raw")
+		elseif ($this->GetHandler() == "raw")
 		{
 			header('Content-type: text/plain');
-			print($this->handler($this->handler));
+			print($this->handler($this->GetHandler()));
 		}
 		// grabcode page handler
-		elseif ($this->handler == 'grabcode')
+		elseif ($this->GetHandler() == 'grabcode')
 		{
-			print($this->handler($this->handler));
+			print($this->handler($this->GetHandler()));
 		}
-		elseif (preg_match('/\.(gif|jpg|png)$/', $this->handler))		# should not be necessary
+		elseif (preg_match('/\.(gif|jpg|png)$/', $this->GetHandler()))		# should not be necessary
 		{
-			header('Location: images/' . $this->handler);
+			header('Location: images/' . $this->GetHandler());
 		}
-		elseif (preg_match('/\.css$/', $this->handler))					# should not be necessary
+		elseif (preg_match('/\.css$/', $this->GetHandler()))					# should not be necessary
 		{
-			header('Location: css/' . $this->handler);
+			header('Location: css/' . $this->GetHandler());
 		}
 		elseif(0 !== strcmp($newtag = preg_replace('/\s+/', '_', $tag), $tag))
 		{
 			header("Location: ".$this->Href('', $newtag));
 		}
-		elseif($this->handler == 'html')
+		elseif($this->GetHandler() == 'html')
 		{
 			header('Content-type: text/html');
-			print($this->handler($this->handler));
+			print($this->handler($this->GetHandler()));
 		}
 		else
 		{
 			//output page
-			$content_body = $this->handler($this->handler);
+			$content_body = $this->handler($this->GetHandler());
 			echo $this->Header();
 			echo $content_body;
 			echo $this->Footer();

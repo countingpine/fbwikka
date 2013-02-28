@@ -558,12 +558,12 @@ if (!function_exists("wakka2callback")) # DotMG [many lines] : Unclosed tags fix
 			return (++$trigger_strike % 2 ? "<span class=\"strikethrough\">" : "</span>");
 		}
 		// additions
-		elseif ($thing == "&pound;&pound;")
+		elseif (($thing == "&pound;&pound;") || ('Â£Â£' == $thing))
 		{
 			return (++$trigger_inserted % 2 ? "<ins>" : "</ins>");
 		}
 		// deletions
-		elseif ($thing == "&yen;&yen;")
+		elseif (($thing == "&yen;&yen;") || ('Â¥Â¥' == $thing))
 		{
 			return (++$trigger_deleted % 2 ? "<del>" : "</del>");
 		}
@@ -573,7 +573,7 @@ if (!function_exists("wakka2callback")) # DotMG [many lines] : Unclosed tags fix
 			return (++$trigger_center % 2 ? "<div class=\"center\">\n" : "\n</div>\n");
 		}
 		// urls (see RFC 1738 <http://www.ietf.org/rfc/rfc1738.txt>)
-		elseif (preg_match("/^([a-z]+:\/\/[[:alnum:]\/?;:@&=\._-]+[[:alnum:]\/])(.*)$/", $thing, $matches))
+		elseif (preg_match("/^([a-z]+:\/\/[[:alnum:]\/?;:@%&=\._-]+[[:alnum:]\/])(.*)$/", $thing, $matches))
 		{
 			$url = $matches[1];
 			/* Inline images are disabled for security reason, use {{image action}} #142
@@ -776,7 +776,7 @@ if (!function_exists("wakka2callback")) # DotMG [many lines] : Unclosed tags fix
 				return "";
 
 			// Case 1: Interwiki link followed by | separator
-			if(preg_match("/^([A-ZÄÖÜ][A-Za-zÄÖÜßäöü]+[:].*?)\s*\|\s*(.*?)$/s", $contents, $matches))
+			if(preg_match("/^([A-ZÃ„Ã–Ãœ][A-Za-zÃ„Ã–ÃœÃŸÃ¤Ã¶Ã¼]+[:].*?)\s*\|\s*(.*?)$/s", $contents, $matches))
 			{
 				$url = $matches[1];
 				$text = $matches[2];
@@ -784,7 +784,7 @@ if (!function_exists("wakka2callback")) # DotMG [many lines] : Unclosed tags fix
 
 			// Case 2: Deprecated...(interwiki link followed by
 			// whitespace separator)
-			else if(preg_match("/^([A-ZÄÖÜ][A-Za-zÄÖÜßäöü]+[:]\S*)\s+(.*)$/s", $contents, $matches))
+			else if(preg_match("/^([A-ZÃ„Ã–Ãœ][A-Za-zÃ„Ã–ÃœÃŸÃ¤Ã¶Ã¼]+[:]\S*)\s+(.*)$/s", $contents, $matches))
 			{
 				$url = $matches[1];
 				$text = $matches[2];
@@ -803,7 +803,7 @@ if (!function_exists("wakka2callback")) # DotMG [many lines] : Unclosed tags fix
 			// Case 4: Deprecated...(first part is a string
 			// followed by one or more whitespaces)
 			else if(preg_match("/^(.*?)\s+([^|]+)$/s", $contents, $matches) && 
-					preg_match("/^[A-ZÄÖÜa-zßäöü][A-Za-z0-9ÄÖÜßäöü]*$/", $matches[1]))
+					preg_match("/^[A-ZÃ„Ã–Ãœa-zÃŸÃ¤Ã¶Ã¼][A-Za-z0-9Ã„Ã–ÃœÃŸÃ¤Ã¶Ã¼]*$/", $matches[1]))
 			{
 				$url = $matches[1]; 
 				$text = $matches[2];
@@ -863,11 +863,11 @@ if (!function_exists("wakka2callback")) # DotMG [many lines] : Unclosed tags fix
 			}
 			else
 			{
-				if (ereg('[0-9]', $newIndentType[0])) { $newIndentType = '1'; }
-				elseif (ereg('[IVX]', $newIndentType[0])) { $newIndentType = 'I'; }
-				elseif (ereg('[ivx]', $newIndentType[0])) { $newIndentType = 'i'; }
-				elseif (ereg('[A-Z]', $newIndentType[0])) { $newIndentType = 'A'; }
-				elseif (ereg('[a-z]', $newIndentType[0])) { $newIndentType = 'a'; }
+				if (preg_match('/[0-9]/', $newIndentType[0])) { $newIndentType = '1'; }
+				elseif (preg_match('/[IVX]/', $newIndentType[0])) { $newIndentType = 'I'; }
+				elseif (preg_match('/[ivx]/', $newIndentType[0])) { $newIndentType = 'i'; }
+				elseif (preg_match('/[A-Z]/', $newIndentType[0])) { $newIndentType = 'A'; }
+				elseif (preg_match('/[a-z]/', $newIndentType[0])) { $newIndentType = 'a'; }
 
 				$li = 1;
 			}
@@ -1000,12 +1000,12 @@ if (!function_exists("wakka2callback")) # DotMG [many lines] : Unclosed tags fix
 		}
 		// interwiki links!
 		// Deprecated; use forced links with | separator instead
-		elseif (preg_match("/^[A-ZÄÖÜ][A-Za-zÄÖÜßäöü]+[:]\S*$/s", $thing))
+		elseif (preg_match("/^[A-ZÃ„Ã–Ãœ][A-Za-zÃ„Ã–ÃœÃŸÃ¤Ã¶Ã¼]+[:]\S*$/s", $thing))
 		{
 			return $wakka->Link($thing);
 		}
 		// wiki links!
-		elseif (preg_match("/^[A-ZÄÖÜ]+[a-zßäöü]+[A-Z0-9ÄÖÜ][A-Za-z0-9ÄÖÜßäöü]*$/s", $thing))
+		elseif (preg_match("/^[A-ZÃ„Ã–Ãœ]+[a-zÃŸÃ¤Ã¶Ã¼]+[A-Z0-9Ã„Ã–Ãœ][A-Za-z0-9Ã„Ã–ÃœÃŸÃ¤Ã¶Ã¼]*$/s", $thing))
 		{
 			return $wakka->Link($thing);
 		}
@@ -1068,7 +1068,7 @@ if (!function_exists('parse_attributes'))
 				//This attribute isn't allowed here / is wrong.
 				// WARNING: JS vulnerability: two minus signs are not allowed in a comment, so we replace any occurence of them by underscore.
 				// Consider the code ||(p--><font size=1px><a href=...<!--:blabla
-				// When migrating to UTF-8, we could use str_replace('--', 'âˆ’âˆ’', $key) to make things more pretty. //TODO garbled ... mdash?
+				// When migrating to UTF-8, we could use str_replace('--', 'Ã¢ÂˆÂ’Ã¢ÂˆÂ’', $key) to make things more pretty. //TODO garbled ... mdash?
 				echo '<!--Cannot find attribute for key "'.str_replace('--', '__', $key).'" from hints given.-->'."\n";	#i18n
 			}
 			else
@@ -1087,7 +1087,7 @@ $text = str_replace("\r\n", "\n", $text);
 // replace 4 consecutive spaces at the beginning of a line with tab character
 // $text = preg_replace("/\n[ ]{4}/", "\n\t", $text); // moved to edit.php
 
-if ($this->handler == "show") $mind_map_pattern = "<map.*?<\/map>|"; else $mind_map_pattern = "";
+if ($this->GetHandler() == "show") $mind_map_pattern = "<map.*?<\/map>|"; else $mind_map_pattern = "";
 
 $text = preg_replace_callback(
 	"/".
@@ -1105,9 +1105,9 @@ $text = preg_replace_callback(
 	# forced linebreak and hr
 	"-{3,}|".  
 	# URL
-	"\b[a-z]+:\/\/\S+|".
+	"\b[a-z]+:\/\/[[:alnum:]\/?;:@%&=\._-]+[[:alnum:]\/]|".
 	# Wiki markup
-	"\*\*|\'\'|\#\#|\#\%|@@|::c::|\>\>|\<\<|&pound;&pound;|&yen;&yen;|\+\+|__|<|>|\/\/|".
+	"\*\*|\'\'|\#\#|\#\%|@@|::c::|\>\>|\<\<|Â£Â£|Â¥Â¥|&pound;&pound;|&yen;&yen;|\+\+|__|<|>|\/\/|".
 	# headings
 	"======|=====|====|===|==|".
 	# indents and lists
@@ -1118,9 +1118,9 @@ $text = preg_replace_callback(
 	"\{\{.*?\}\}|".
 	# InterWiki link (deprecated, as pagenames may now contain spaces)
 	# Use forced links with a | separator instead
-	"\b[A-ZÄÖÜ][A-Za-zÄÖÜßäöü]+[:](?![=_#])\S*\b|".
+	"\b[A-ZÃ„Ã–Ãœ][A-Za-zÃ„Ã–ÃœÃŸÃ¤Ã¶Ã¼]+[:](?![=_#])\S*\b|".
 	# CamelWords
-	"\b([A-ZÄÖÜ]+[a-zßäöü]+[A-Z0-9ÄÖÜ][A-Za-z0-9ÄÖÜßäöü]*)\b|".
+	"\b([A-ZÃ„Ã–Ãœ]+[a-zÃŸÃ¤Ã¶Ã¼]+[A-Z0-9Ã„Ã–Ãœ][A-Za-z0-9Ã„Ã–ÃœÃŸÃ¤Ã¶Ã¼]*)\b|".
 	#ampersands! Track single ampersands or any htmlentity-like (&...;)
 	'\\&([#a-zA-Z0-9]+;)?|'. 	
 	# newline

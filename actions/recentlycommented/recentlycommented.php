@@ -3,7 +3,7 @@
  * Display a list of recently commented pages.
  *
  * @package		Actions
- * @version		$Id: recentlycommented.php 1823 2011-12-04 09:17:23Z BrianKoontz $
+ * @version		$Id: recentlycommented.php 1784 2011-04-23 01:44:18Z BrianKoontz $
  * @license		http://www.gnu.org/copyleft/gpl.html GNU General Public License
  * @filesource
  *
