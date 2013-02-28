@@ -1,9 +1,20 @@
 <?php
 
-// This may look a bit strange, but all possible formatting tags have to be in a single regular expression for this to work correctly. Yup!
+// i18n strings
+if (!defined('GRABCODE_BUTTON_VALUE')) define('GRABCODE_BUTTON_VALUE', 'Grab');
+if (!defined('GRABCODE_BUTTON_TITLE')) define('GRABCODE_BUTTON_TITLE', 'Download %s');
 
-//#dotmg [many lines] : Unclosed tags fix! For more info, m.randimbisoa@dotmg.net
-if (!function_exists("wakka2callback"))
+// code block patterns
+if (!defined('PATTERN_OPEN_BRACKET')) define('PATTERN_OPEN_BRACKET', '\(');
+if (!defined('PATTERN_FORMATTER')) define('PATTERN_FORMATTER', '([^;\)]+)');
+if (!defined('PATTERN_LINE_NUMBER')) define('PATTERN_LINE_NUMBER', '(;(\d*?))?');
+if (!defined('PATTERN_FILENAME')) define('PATTERN_FILENAME', '(;([^\)\x01-\x1f\*\?\"<>\|]*)([^\)]*))?');
+if (!defined('PATTERN_CLOSE_BRACKET')) define('PATTERN_CLOSE_BRACKET', '\)');
+if (!defined('PATTERN_CODE')) define('PATTERN_CODE', '(.*)');
+
+// Note: all possible formatting tags have to be in a single regular expression for this to work correctly.
+
+if (!function_exists("wakka2callback")) # DotMG [many lines] : Unclosed tags fix!
 {
 	function wakka2callback($things)
 	{
@@ -29,6 +40,9 @@ if (!function_exists("wakka2callback"))
 		static $trigger_inserted = 0;
 		static $trigger_center = 0;
 		static $trigger_l = array(-1, 0, 0, 0, 0, 0);
+		static $output = '';
+		static $valid_filename = '';
+		static $invalid = '';
 
 		global $wakka;
 
@@ -124,11 +138,13 @@ if (!function_exists("wakka2callback"))
 		else if (preg_match("/^([a-z]+:\/\/\S+?)([^[:alnum:]^\/])?$/", $thing, $matches))
 		{
 			$url = $matches[1];
-			if (preg_match("/^(.*)\.(gif|jpg|png)/si", $url)) {
-				return "<img src=\"$url\" alt=\"image\" />".$matches[2];
-			} else
+			/* Inline images are disabled for security reason, use {{image action}} #142
+			But if you still need this functionality, update this file like below
+			if (preg_match("/\.(gif|jpg|png|svg)$/si", $url)) {
+				return '<img src="'.$wakka->Link($url).'" alt="image" />'.$wakka->htmlspecialchars_ent($matches[2]);
+			} else */
 			// Mind Mapping Mod
-			if (preg_match("/^(.*)\.(mm)/si", $url)) {
+			if (preg_match("/\.(mm)$/si", $url)) { #145
 				return $wakka->Action("mindmap ".$url);
 			} else
 				return $wakka->Link($url).$matches[2];
@@ -183,45 +199,62 @@ if (!function_exists("wakka2callback"))
 			}
 			else
 			{
-				return $this->htmlspecialchars_ent($matches[1]);
+				return $wakka->htmlspecialchars_ent($matches[1]);
 			}
 		}
 		// code text
 		else if (preg_match("/^%%(.*?)%%$/s", $thing, $matches))
 		{
 			/*
-			 * Note: this routine is rewritten such that (new) language formatters
-			 * will automatically be found, whether they are GeSHi language config files
-			 * or "internal" Wikka formatters.
-			 * Path to GeSHi language files and Wikka formatters MUST be defined in config.
-			 * For line numbering (GeSHi only) a starting line can be specified after the language
-			 * code, separated by a ; e.g., %%(php;27)....%%.
-			 * Specifying >= 1 turns on line numbering if this is enabled in the configuration.
-			 */
+			* Note: this routine is rewritten such that (new) language formatters
+			* will automatically be found, whether they are GeSHi language config files
+			* or "internal" Wikka formatters.
+			* Path to GeSHi language files and Wikka formatters MUST be defined in config.
+			* For line numbering (GeSHi only) a starting line can be specified after the language
+			* code, separated by a ; e.g., %%(php;27)....%%.
+			* Specifying >= 1 turns on line numbering if this is enabled in the configuration.
+			* An optional filename can be specified as well, e.g. %%(php;27;myfile.php)....%%
+			* This filename will be used by the grabcode handler.			
+			*/
+			$output = ''; //reinitialize variable
 			$code = $matches[1];
 			// if configuration path isn't set, make sure we'll get an invalid path so we
 			// don't match anything in the home directory
 			$geshi_hi_path = isset($wakka->config['geshi_languages_path']) ? $wakka->config['geshi_languages_path'] : '/:/';
 			$wikka_hi_path = isset($wakka->config['wikka_highlighters_path']) ? $wakka->config['wikka_highlighters_path'] : '/:/';
-			// check if a language (and starting line) has been specified
-			if (preg_match("/^\((.+?)(;([0-9]+))??\)(.*)$/s", $code, $matches))
+			// check if a language (and an optional starting line or filename) has been specified
+			if (preg_match('/^'.PATTERN_OPEN_BRACKET.PATTERN_FORMATTER.PATTERN_LINE_NUMBER.PATTERN_FILENAME.PATTERN_CLOSE_BRACKET.PATTERN_CODE.'$/s', $code, $matches))
 			{
-				list(, $language, , $start, $code) = $matches;
+				list(, $language, , $start, , $filename, $invalid, $code) = $matches;
 			}
 			// get rid of newlines at start and end (and preceding/following whitespace)
 			// Note: unlike trim(), this preserves any tabs at the start of the first "real" line
 			$code = preg_replace('/^\s*\n+|\n+\s*$/','',$code);
-
-			// check if GeSHi path is set and we have a GeSHi hilighter for this language
+			
+			// check if GeSHi path is set and we have a GeSHi highlighter for this language
 			if (isset($language) && isset($wakka->config['geshi_path']) && file_exists($geshi_hi_path.'/'.$language.'.php'))
 			{
-				// use GeSHi for hilighting
-				$output = $wakka->GeSHi_Highlight($code, $language, $start);
+				// check if specified filename is valid and generate code block header
+				if (isset($filename) && strlen($filename) > 0 && strlen($invalid) == 0) # TODO: use central regex library for filename validation
+				{
+					$valid_filename = $filename;
+					// create code block header
+					$output .= '<div class="code_header">';
+					// display filename and start line, if specified
+					$output .= $filename;
+					if (strlen($start)>0)
+					{
+						$output .= ' (line '.$start.')';
+					}
+					$output .= '</div>'."\n";
+				}
+				// use GeSHi for highlighting
+				$output .= $wakka->GeSHi_Highlight($code, $language, $start);
 			}
-			// check Wikka highlighter path is set and if we have an internal Wikka hilighter
+			// check Wikka highlighter path is set and if we have an internal Wikka highlighter
 			elseif (isset($language) && isset($wakka->config['wikka_formatter_path']) && file_exists($wikka_hi_path.'/'.$language.'.php') && 'wakka' != $language)
 			{
-				// use internal Wikka hilighter
+				// use internal Wikka highlighter
 				$output = '<div class="code">'."\n";
 				$output .= $wakka->Format($code, $language);
 				$output .= "</div>\n";
@@ -235,6 +268,17 @@ if (!function_exists("wakka2callback"))
 				$output .= "</div>\n";
 			}
 
+			// display grab button if option is set in the config file
+			if ($wakka->config['grabcode_button'] == '1')
+			{
+				$output .= $wakka->FormOpen("grabcode");
+				// build form
+				$output .= '<input type="submit" class="grabcode" name="save" value="'.GRABCODE_BUTTON_VALUE.'" title="'.rtrim(sprintf(GRABCODE_BUTTON_TITLE, $valid_filename)).'" />';
+				$output .= '<input type="hidden" name="filename" value="'.urlencode($valid_filename).'" />';
+				$output .= '<input type="hidden" name="code" value="'.urlencode($code).'" />';
+				$output .= $wakka->FormClose();
+			}
+			// output
 			return $output;
 		}
 		// forced links

@@ -14,11 +14,20 @@
 	<meta name="keywords" content="<?php echo $this->GetConfigValue("meta_keywords") ?>" />
 	<meta name="description" content="<?php echo $this->GetConfigValue("meta_description") ?>" />
 	<link rel="stylesheet" type="text/css" href="css/<?php echo $this->GetConfigValue("stylesheet") ?>" />
-	<link rel="stylesheet" type="text/css" href="css/print.css" media="print" /> 
+	<link rel="stylesheet" type="text/css" href="css/print.css" media="print" />
+	<link rel="icon" href="images/favicon.ico" type="image/x-icon" />
+	<link rel="shortcut icon" href="images/favicon.ico" type="image/x-icon" />
+<?php
+if ($this->GetMethod() != 'edit') {
+	$rsslink  = '	<link rel="alternate" type="application/rss+xml" title="'.$this->GetWakkaName().': revisions for '.$this->tag.' (RSS)" href="'.$this->Href('revisions.xml', $this->tag).'" />'."\n";
+	$rsslink .= '	<link rel="alternate" type="application/rss+xml" title="'.$this->GetWakkaName().': recently edited pages (RSS)" href="'.$this->Href('recentchanges.xml', $this->tag).'" />'."\n";
+	echo $rsslink;	
+}
+?>
 </head>
 <body <?php echo $message ? "onLoad=\"alert('".$message."');\" " : "" ?> >
 <div class="header">
-	<h2><?php echo $this->config["wakka_name"] ?> : <a href="<?php echo $this->href("", "TextSearch", "phrase=").urlencode($this->GetPageTag()); ?>"><?php echo $this->GetPageTag(); ?></a></h2>
+	<h2><?php echo $this->config["wakka_name"] ?> : <a href="<?php echo $this->href('backlinks', '', ''); ?>" title="Display a list of pages linking to <? echo $this->tag ?>"><?php echo $this->GetPageTag(); ?></a></h2>
 	<?php echo $this->Link($this->config["root_page"]); ?> ::
 	<?php 
 		if ($this->GetUser()) {

@@ -1,6 +1,11 @@
-.header, .footer, .commentsheader, .copyright, .smallprint { display:none; }
+/*
+-----------------------------------------------
+Wikka Default Stylesheet (print)
+----------------------------------------------- */
 
-BODY {
+.header, .footer, .commentsheader, .copyright, .smallprint, .lastedit, .grabcode { display:none; }
+
+body {
 	margin-top: 0px; 
 	margin-bottom: 0px; 
  	margin-left: 0px;
