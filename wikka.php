@@ -1,34 +1,47 @@
 <?php
-/*
-
-This file is part of Wikka, a PHP wiki engine.
-
-Copyright (C) 2002, 2003 Hendrik Mans <hendrik@mans.de>
-Copyright (C) 2004, 2005 Jason Tourtelotte <wikka-admin@jsnx.com>
-Copyright (C) 2006 Wikka Development Team <dartar@wikkawiki.org>
-
-Wikka is free software; you can redistribute it and/or
-modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation; either version 2
-of the License, or (at your option) any later version.
-
-Wikka is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-
-*/
-
 /**
+ * The Wikka mainscript.
+ * 
+ * This file is called each time a request is made from the browser.
+ * Most of the core methods used by the engine are located in the Wakka class.
+ * @see Wakka
  * This file was originally written by Hendrik Mans for WakkaWiki
  * and released under the terms of the modified BSD license
- * (see docs/WakkaWiki.LICENSE).
- * WakkaWiki Copyright (c) 2002, Hendrik Mans <hendrik@mans.de>
+ * @see /docs/WakkaWiki.LICENSE
+ *
+ * @package Wikka
+ * @subpackage Core
+ * @version $Id$
+ * @license http://www.gnu.org/copyleft/gpl.html GNU General Public License
+ * @see /docs/Wikka.LICENSE
+ * @filesource
+ * 
+ * @author Hendrik Mans <hendrik@mans.de>
+ * @author Jason Tourtelotte <wikka-admin@jsnx.com>
+ * @author {@link http://wikkawiki.org/JavaWoman Marjolein Katsma}
+ * @author {@link http://wikkawiki.org/NilsLindenberg Nils Lindenberg}
+ * @author {@link http://wikkawiki.org/DotMG Mahefa Randimbisoa}
+ * @author {@link http://wikkawiki.org/DarTar Dario Taraborelli}
+ * 
+ * @copyright Copyright 2002-2003, Hendrik Mans <hendrik@mans.de>
+ * @copyright Copyright 2004-2005, Jason Tourtelotte <wikka-admin@jsnx.com>
+ * @copyright Copyright 2006, {@link http://wikkawiki.org/CreditsPage Wikka Development Team}
+ * 
+ * @todo use templating class for page generation;
+ * @todo add phpdoc documentation for configuration array elements;
+ * @todo	replace $_REQUEST with either $_GET or $_POST (or both if really
+ * 			necessary) - #312  
  */
+
+// If you need to use this installation with a configuration file outside the 
+// installation directory uncomment the following line and adapt it to reflect 
+// the (filesystem) path to where your configuration file is located.
+// This would make it possible to store the configuration file outside of the
+// webroot, or to share one configuration file between several Wikka Wiki
+// installations.
+// This replaces the use of the environment variable WAKKA_CONFIG for security
+// reasons. [SEC]      
+#if (!defined('WAKKA_CONFIG')) define('WAKKA_CONFIG','path/to/your/wikka.config.php');
 
 if(!defined('ERROR_WAKKA_LIBRARY_MISSING')) define ('ERROR_WAKKA_LIBRARY_MISSING','The necessary file "libs/Wakka.class.php" could not be found. To run Wikka, please make sure the file exists and is placed in the right directory!');
 if(!defined('ERROR_WRONG_PHP_VERSION')) define ('ERROR_WRONG_PHP_VERSION', '$_REQUEST[] not found. Wakka requires PHP 4.1.0 or higher!');
@@ -45,12 +58,17 @@ ob_start();
 error_reporting (E_ALL ^ E_NOTICE);
 
 /**
- * Defines current version. Do not change the version number or you will have problems upgrading.
+ * Defines the current Wikka version. Do not change the version number or you will have problems upgrading.
  */
-if (!defined('WAKKA_VERSION')) define('WAKKA_VERSION', '1.1.6.2');
-
+if (!defined('WAKKA_VERSION')) define('WAKKA_VERSION', '1.1.6.3');
+/**
+ * Defines the default cookie name.
+ */
 if(!defined('BASIC_COOKIE_NAME')) define('BASIC_COOKIE_NAME', 'Wikkawiki');
 
+/**
+ * Calculate page generation time.
+ */
 function getmicrotime() {
 	list($usec, $sec) = explode(" ", microtime());
 	return ((float)$usec + (float)$sec);
@@ -60,6 +78,13 @@ $tstart = getmicrotime();
 
 if ( ! function_exists("mysql_real_escape_string") )
 {
+/**
+ * Escape special characters in a string for use in a SQL statement.
+ * 
+ * This function is added for back-compatibility with MySQL 3.23.
+ * @param string $string the string to be escaped
+ * @return string a string with special characters escaped
+ */
 	function mysql_real_escape_string($string)
 	{
 		return mysql_escape_string($string);
@@ -124,14 +149,19 @@ if (! function_exists('mkdir_r')) {
     }
 }
 
-// check for main library 
+/**
+ * Include main library if it exists.
+ * @see /libs/Wakka.class.php
+ */
 if (file_exists('libs/Wakka.class.php')) require_once('libs/Wakka.class.php');
 else die(ERROR_WAKKA_LIBRARY_MISSING);
 
 // stupid version check
-if (!isset($_REQUEST)) die(ERROR_WRONG_PHP_VERSION);
+if (!isset($_REQUEST)) die(ERROR_WRONG_PHP_VERSION); // TODO replace with php version_compare
 
-// workaround for the amazingly annoying magic quotes.
+/** 
+ * Workaround for the amazingly annoying magic quotes.
+ */
 function magicQuotesWorkaround(&$a)
 {
 	if (is_array($a))
@@ -153,8 +183,30 @@ if (get_magic_quotes_gpc())
 	magicQuotesWorkaround($_COOKIE);
 }
 
-
-// default configuration values
+/**
+ * Default configuration.
+ */
+// attempt to derive base URL fragments and whether rewrite mode is enabled (#438)
+$t_domain	= $_SERVER['SERVER_NAME'];
+$t_port		= $_SERVER['SERVER_PORT'] != 80 ? ':'.$_SERVER['SERVER_PORT'] : '';
+$t_request = $_SERVER['REQUEST_URI'];
+if (preg_match('@\.php$@', $t_request) && !preg_match('@wikka\.php$@', $t_request))
+{
+	$t_request = preg_replace('@/[^.]+\.php@', '/wikka.php', $t_request);	// handle "overridden" redirect from index.php (or plain wrong file name!)
+}
+if ( !preg_match('@wakka=@',$_SERVER['REQUEST_URI']) && isset($_SERVER['QUERY_STRING']) && preg_match('@wakka=@',$_SERVER['QUERY_STRING']))
+{
+	// looks like we got a rewritten request via .htaccess 
+	$t_query = '';
+	$t_request = preg_replace('@'.preg_quote('wikka.php').'@', '', $t_request);
+	$t_rewrite_mode = 1;
+}
+else
+{
+	// no rewritten request apparent
+	$t_query = '?wakka=';
+	$t_rewrite_mode = 0;
+}
 $wakkaDefaultConfig = array(
 	'mysql_host'				=> 'localhost',
 	'mysql_database'			=> 'wikka',
@@ -163,8 +215,10 @@ $wakkaDefaultConfig = array(
 
 	'root_page'				=> 'HomePage',
 	'wakka_name'				=> 'MyWikkaSite',
-	'base_url'				=> 'http://'.$_SERVER['SERVER_NAME'].($_SERVER['SERVER_PORT'] != 80 ? ':'.$_SERVER['SERVER_PORT'] : '').$_SERVER['REQUEST_URI'].(preg_match('/'.preg_quote('wikka.php').'$/', $_SERVER['REQUEST_URI']) ? '?wakka=' : ''),
-	'rewrite_mode'			=> (preg_match('/'.preg_quote('wikka.php').'$/', $_SERVER['REQUEST_URI']) ? '0' : '1'),
+#	'base_url'				=> 'http://'.$_SERVER['SERVER_NAME'].($_SERVER['SERVER_PORT'] != 80 ? ':'.$_SERVER['SERVER_PORT'] : '').$_SERVER['REQUEST_URI'].(preg_match('/'.preg_quote('wikka.php').'$/', $_SERVER['REQUEST_URI']) ? '?wakka=' : ''),
+#	'rewrite_mode'			=> (preg_match('/'.preg_quote('wikka.php').'$/', $_SERVER['REQUEST_URI']) ? '0' : '1'),
+	'base_url'				=> 'http://'.$t_domain.$t_port.$t_request.$t_query,
+	'rewrite_mode'			=> $t_rewrite_mode,
 	'wiki_suffix'			=> '@wikka',
 
 	'action_path'			=> 'actions',
@@ -214,14 +268,25 @@ $wakkaDefaultConfig = array(
 // load config
 $wakkaConfig = array();
 if (file_exists("wakka.config.php")) rename("wakka.config.php", "wikka.config.php");
-if (!$configfile = GetEnv("WAKKA_CONFIG")) $configfile = "wikka.config.php";
+#if (!$configfile = GetEnv("WAKKA_CONFIG")) $configfile = "wikka.config.php";
+if (defined('WAKKA_CONFIG'))	// use a define instead of GetEnv [SEC] 
+{
+	$configfile = WAKKA_CONFIG;
+}
+else
+{
+	$configfile = 'wikka.config.php';
+}
 if (file_exists($configfile)) include($configfile);
 
 $wakkaConfigLocation = $configfile;
 $wakkaConfig = array_merge($wakkaDefaultConfig, $wakkaConfig);
 
-// check for locking
-if (file_exists("locked")) {
+/**
+ * Check for locking.
+ */
+if (file_exists('locked'))
+{
 	// read password from lockfile
 	$lines = file("locked");
 	$lockpw = trim($lines[0]);
@@ -243,34 +308,57 @@ if (file_exists("locked")) {
     }
 }
 
-// compare versions, start installer if necessary
+/**
+ * Compare versions, start installer if necessary.
+ */
 if (!isset($wakkaConfig["wakka_version"])) $wakkaConfig["wakka_version"] = 0;
 if ($wakkaConfig["wakka_version"] !== WAKKA_VERSION)
 {
-	// start installer
-	$installAction = "default";
-	if (isset($_REQUEST["installAction"])) $installAction = trim($_REQUEST["installAction"]);
-	if (file_exists("setup/header.php")) include("setup/header.php"); else print '<em>'.ERROR_SETUP_HEADER_MISSING.'</em>';
-	if (file_exists("setup/".$installAction.".php")) include("setup/".$installAction.".php"); else print '<em>'.ERROR_SETUP_FILE_MISSING.'</em>';
-	if (file_exists("setup/footer.php")) include("setup/footer.php"); else print '<em>'.ERROR_SETUP_FOOTER_MISSING.'</em>';
+	/**
+	 * Start installer.
+	 * 
+	 * Data entered by the user is submitted in $_POST, next action for the
+	 * installer (which will receive this data) is passed as a $_GET parameter!
+	 */
+	$installAction = 'default';
+	#if (isset($_REQUEST['installAction'])) $installAction = trim($_REQUEST['installAction']);
+	if (isset($_GET['installAction'])) $installAction = trim($_GET['installAction']);	#312
+	if (file_exists('setup'.DIRECTORY_SEPARATOR.'header.php')) include('setup'.DIRECTORY_SEPARATOR.'header.php'); else print '<em>'.ERROR_SETUP_HEADER_MISSING.'</em>'; #89
+	if (file_exists('setup'.DIRECTORY_SEPARATOR.$installAction.'.php')) include('setup'.DIRECTORY_SEPARATOR.$installAction.'.php'); else print '<em>'.ERROR_SETUP_FILE_MISSING.'</em>'; #89
+	if (file_exists('setup'.DIRECTORY_SEPARATOR.'footer.php')) include('setup'.DIRECTORY_SEPARATOR.'footer.php'); else print '<em>'.ERROR_SETUP_FOOTER_MISSING.'</em>'; #89
 	exit;
 }
 
-// start session
+/**
+ * Start session.
+ */
 session_name(md5(BASIC_COOKIE_NAME.$wakkaConfig['wiki_suffix']));
 session_start();
 
 // fetch wakka location
-$wakka = $_REQUEST["wakka"];
+/**
+ * Fetch wakka location (requested page + parameters)
+ * 
+ * @todo files action uses POST, everything else uses GET #312
+ */
+#$wakka = $_REQUEST["wakka"];
+$wakka = $_GET['wakka']; #312
 
-// remove leading slash
+/**
+ * Remove leading slash.
+ */
 $wakka = preg_replace("/^\//", "", $wakka);
 
-// split into page/method
+/**
+ * Split into page/method.
+ * 
+ * Note this splits at the FIRST / so $method may contain one or more slashes;
+ * this is not allowed, and ultimately handled in the Method() method. [SEC]
+ */
 if (preg_match("#^(.+?)/(.*)$#", $wakka, $matches)) list(, $page, $method) = $matches;
 else if (preg_match("#^(.*)$#", $wakka, $matches)) list(, $page) = $matches;
-#Fix lowercase mod_rewrite bug: Url rewritting lowercases the page name. #135
-if (strtolower($page) == $page)
+//Fix lowercase mod_rewrite bug: URL rewriting makes pagename lowercase. #135
+if ((strtolower($page) == $page) && (isset($_SERVER['REQUEST_URI']))) #38
 {
  $pattern = preg_quote($page, '/');
  if (preg_match("/($pattern)/i", urldecode($_SERVER['REQUEST_URI']), $match_url))
@@ -279,9 +367,14 @@ if (strtolower($page) == $page)
  }
 }
 
-// create wakka object
-$wakka =& new Wakka($wakkaConfig);								# create object by reference
-// check for database access
+/**
+ * Create Wakka object
+ */
+$wakka =& new Wakka($wakkaConfig);
+
+/** 
+ * Check for database access.
+ */
 if (!$wakka->dblink)
 {
 	echo '<em class="error">'.ERROR_NO_DB_ACCESS.'</em>';
@@ -289,22 +382,27 @@ if (!$wakka->dblink)
 }
 
 
-// go!
+/** 
+ * Run the engine.
+ */
 if (!isset($method)) $method='';
 $wakka->Run($page, $method);
 if (!preg_match("/(xml|raw|mm|grabcode)$/", $method))
 {
-	   $tend = getmicrotime();
-	//Calculate the difference
-	    $totaltime = ($tend - $tstart);
-	//Output result
-		//print '<div class="smallprint">'.sprintf(PAGE_GENERATION_TIME, $totaltime)."</div>\n</body>\n</html>";
+	$tend = getmicrotime();
+	//calculate the difference
+	$totaltime = ($tend - $tstart);
+	//output result
+	//print '<div class="smallprint">'.sprintf(PAGE_GENERATION_TIME, $totaltime)."</div>\n</body>\n</html>";
 }
 
 $content =  ob_get_contents();
-if (strstr ($HTTP_SERVER_VARS['HTTP_ACCEPT_ENCODING'], 'gzip') && function_exists('gzencode') )
+/** 
+ * Use gzip compression if possible.
+ */
+if ( isset($_SERVER['HTTP_ACCEPT_ENCODING']) && strstr ($_SERVER['HTTP_ACCEPT_ENCODING'], 'gzip') && function_exists('gzencode') ) #38
 {
-   // Tell the browser the content is compressed with gzip
+	// Tell the browser the content is compressed with gzip
 	header ("Content-Encoding: gzip");
 	$page_output = gzencode($content);
 	$page_length = strlen($page_output);
@@ -323,6 +421,9 @@ header('ETag: '.$etag);
 
 header('Content-Length: '.$page_length);
 ob_end_clean();
-echo $page_output;
 
+/** 
+ * Output the page.
+ */
+echo $page_output;
 ?>

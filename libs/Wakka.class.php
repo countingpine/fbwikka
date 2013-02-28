@@ -5,8 +5,33 @@
  * It includes the Wakka class, which provides the core functions
  * to run Wikka. 
  *
+ * @package Wikka
+ * @subpackage Libs
+ * @version $Id$
+ * @license http://www.gnu.org/copyleft/gpl.html GNU General Public License
+ * @filesource
+ * 
+ * @author Hendrik Mans <hendrik@mans.de>
+ * @author Jason Tourtelotte <wikka-admin@jsnx.com>
+ * @author {@link http://wikkawiki.org/JavaWoman Marjolein Katsma}
+ * @author {@link http://wikkawiki.org/NilsLindenberg Nils Lindenberg}
+ * @author {@link http://wikkawiki.org/DotMG Mahefa Randimbisoa}
+ * @author {@link http://wikkawiki.org/DarTar Dario Taraborelli}
+ * 
+ * @copyright Copyright 2002-2003, Hendrik Mans <hendrik@mans.de>
+ * @copyright Copyright 2004-2005, Jason Tourtelotte <wikka-admin@jsnx.com>
+ * @copyright Copyright 2006, {@link http://wikkawiki.org/CreditsPage Wikka Development Team}
  */
  
+/**
+ * The Wikka core.
+ * 
+ * This class contains all the core methods used to run Wikka.
+ * @name Wakka
+ * @package Wikka
+ * @subpackage Libs
+ * 
+ */
 class Wakka
 {
 	var $config = array();
@@ -18,23 +43,27 @@ class Wakka
 	var $VERSION;
 	var $cookies_sent = false;
 
-	// constructor
+	/**
+	 * Constructor
+	 */
 	function Wakka($config)
 	{
 		$this->config = $config;
 		$this->dblink = @mysql_connect($this->config["mysql_host"], $this->config["mysql_user"], $this->config["mysql_password"]);
-            if ($this->dblink)
-            {
-            	if (!@mysql_select_db($this->config["mysql_database"], $this->dblink))
-                  {
-                  	@mysql_close($this->dblink);
-                        $this->dblink = false;
-                  }
-            }
- 		$this->VERSION = WAKKA_VERSION;
+		if ($this->dblink)
+		{
+			if (!@mysql_select_db($this->config["mysql_database"], $this->dblink))
+			{
+				@mysql_close($this->dblink);
+				$this->dblink = false;
+			}
+		}
+		$this->VERSION = WAKKA_VERSION;
 	}
 
-	// DATABASE
+	/**
+	 * Database methods
+	 */
 	function Query($query)
 	{
 		$start = $this->GetMicroTime();
@@ -45,10 +74,10 @@ class Wakka
 		}
 		if ($this->GetConfigValue("sql_debugging"))
 		{
-  			$time = $this->GetMicroTime() - $start;
-  			$this->queryLog[] = array(
-  				"query"		=> $query,
-  				"time"		=> $time);
+			$time = $this->GetMicroTime() - $start;
+			$this->queryLog[] = array(
+				"query"		=> $query,
+				"time"		=> $time);
 		}
 		return $result;
 	}
@@ -97,31 +126,48 @@ class Wakka
 		}
 	}
 
-	// MISC
+	/**
+	 * Misc methods
+	 */
 	function GetMicroTime() { list($usec, $sec) = explode(" ",microtime()); return ((float)$usec + (float)$sec); }
-	function IncludeBuffered($filename, $notfoundText = "", $vars = "", $path = "")
+	function IncludeBuffered($filename, $notfoundText='', $vars='', $path='')
 	{
-		if ($path) $dirs = explode(":", $path);
-		else $dirs = array("");
+		# TODO: change parameter order, so $path (no default,. it's required) 
+		# comes after $filename and only $notfoundtext and $vars will actually 
+		# be optional with a default of ''. MK/2007-03-31    
 
-		foreach($dirs as $dir)
-		{
-			if ($dir) $dir .= "/";
-			$fullfilename = $dir.$filename;
-			if (file_exists($fullfilename))
+		// check if required parameter $path is supplied (see TODO)
+		if ('' != trim($path))
+		{ 
+			// build full (relative) path to requested plugin (method/action/formatter)
+			$fullfilepath = trim($path).DIRECTORY_SEPARATOR.$filename;	#89 - Note $filename may actually already contain a (partial) path
+			// check if requested file (method/action/formatter) actually exists
+			if (file_exists($fullfilepath))
 			{
-				if (is_array($vars)) extract($vars);
-
+				if (is_array($vars))
+				{
+					// make the parameters also available by name (apart from the array itself):
+					// some callers rely on these separate values, so we extract them, too
+					// taking care not to overwrite any already-existing variable
+					extract($vars, EXTR_SKIP);	# [SEC] EXTR_SKIP avoids collision with existing filenames
+				}
 				ob_start();
-				include($fullfilename);
+				include($fullfilepath);
 				$output = ob_get_contents();
 				ob_end_clean();
 				return $output;
 			}
 		}
-		if ($notfoundText) return $notfoundText;
-		else return false;
+		if ('' != trim($notfoundText))
+		{
+			return $this->htmlspecialchars_ent(trim($notfoundText));	# [SEC] make error (including (part of) request) safe to display
+		}
+		else
+		{
+			return false;
+		}
 	}
+
 	function ReturnSafeHTML($html)
 	{
 		require_once('3rdparty/core/safehtml/classes/safehtml.php');
@@ -137,89 +183,245 @@ class Wakka
 	/**
 	 * Make sure a (user-provided) URL does use &amp; instead of & and is protected from attacks.
 	 *
-	 * Any already-present '&amp;' is first turned into '&'; then htmlspecialchars() is applied so
-	 * all ampersands are "escaped" while characters that could be used to create a script attack
-	 * (< > or ") are "neutralized by escaping them.
+#	 * Any already-present '&amp;' is first turned into '&'; then htmlspecialchars() is applied so
+	 * Any already-present '&amp;' is first turned into '&'; then hsc_secure() 
+	 * is applied so all ampersands are "escaped" while characters that could be 
+	 * used to create a script attack (< > or ") are "neutralized" by escaping 
+	 * them.
 	 *
-	 * This method should be applied on any user-provided url in actions, handlers etc.
+	 * This method should be applied on any user-provided url in actions, 
+	 * handlers etc.
+	 * 
+	 * Note: hsc_secure() is the secure replacement for PHP's htmlspecialchars().
+	 * See #427. 
 	 *
 	 * @author		{@link http://wikkawiki.org/JavaWoman JavaWoman}
 	 * @copyright	Copyright © 2004, Marjolein Katsma
 	 * @license		http://www.gnu.org/copyleft/lesser.html GNU Lesser General Public License
-	 * @version		0.7
+	 * @version		1.0
 	 *
 	 * @access		public
-	 * @todo		refine (maybe)
-	 *
+	 * @uses		Wakka::hsc_secure()
 	 * @param		string	$url  required: URL to sanitize
 	 * @return		string	sanitzied URL
 	 */
 	function cleanUrl($url)
 	{
-		return htmlspecialchars(preg_replace('/&amp;/','&',$url));
+		#return htmlspecialchars(preg_replace('/&amp;/','&',$url));
+		return $this->hsc_secure(preg_replace('/&amp;/','&',$url));
 	}
 
 	/**
-	 * Wrapper around PHP's htmlspecialchars() which preserves (repairs) entity references.
+	 * Wrapper around hsc_secure() which preserves entity references.
 	 *
-	 * The function accepts the same parameters as htmlspecialchars() in PHP and passes them on
-	 * to that function.
+	 * The first two parameters for this function as the same as those for 
+	 * htmlspecialchars() in PHP: the text to be treated, and an optional
+	 * parameter determining how to handle quotes; both these parameters are 
+	 * passed on to our hsc_secure() replacement for htmlspecialchars().
+	 * 
+	 * Since hsc_secure() does not need a character set parameter, we don't
+	 * have that here any more either.
+	 * 
+	 * A third 'doctype' parameter is for local use only and determines how 
+	 * pre-existing entity references are treated after hsc_secure() has done 
+	 * its work: numeic entity references are always "unescaped' since they are
+	 * valid for both HTML and XML doctypes; for XML the named entity references
+	 * for the special characters are unescaped as well, while for for HTML any
+	 * named entity reference is unescaped. This parameter is optional and 
+	 * defaults to HTML.   
 	 *
-	 * One defaults here is different here from that in htmlspecialchars() in PHP:
-	 * charset is set to UTF-8 so we're ready for UTF-8 support (and as long as we don't support
-	 * that there should be no difference with Latin-1); on systems where the charset parameter
-	 * is not available or UTF-8 is not supported this will revert to Latin-1 (ISO-8859-1).
+	 * The function first applies hsc_secure() to the input string and then 
+	 * "unescapes" character entity references and numeric character references 
+	 * (both decimal and hexadecimal).
+	 * Entities are recognized also if the ending semicolon is omitted at the 
+	 * end or before a newline or tag but for consistency the semicolon is 
+	 * always added in the output where it was omitted.
 	 *
-	 * The function first applies htmlspecialchars() to the input string and then "unescapes"
-	 * character entity references and numeric character references (both decimal and hexadecimal).
-	 * Entities are recognized also if the ending semicolon is omitted at the end or before a
-	 * newline or tag but for consistency the semicolon is always added in the output where it was
-	 * omitted.
-	 *
-	 * NOTE:
-	 * Where code should be rendered _as_code_ the original PHP function should be used so that
-	 * entity references are also rendered as such instead of as their corresponding characters.
+	 * Usage note:
+	 * Where code should be rendered <em>as code</em> hsc_secure() should be 
+	 * used directly so that entity references are also rendered as such instead 
+	 * of as their corresponding characters.
+	 * 
+	 * Documentation note:
+	 * It seems the $doctype parameter was added in 1.1.6.2; version should have 
+	 * been bumped up to 1.1, and the param documented. We'll assume the updated
+	 * version was indeed 1.1, and put this one using hsc_secure() at 1.2 (at 
+	 * the same time updating the 'XML' doctype with apos as named entity).
 	 *
 	 * @access	public
-	 * @since	wikka 1.1.6.0
-	 * @version	1.0
-	 * @todo	(later) support full range of situations where (in SGML) a terminating ; may legally
-	 *			be omitted (end, newline and tag are merely the most common ones).
-		* @todo (maybe) recognize valid html entities, thus transform &error; to &amp;error;
+	 * @since	Wikka 1.1.6.0
+	 * @version	1.2
 	 *
+	 * @uses	Wakka::hsc_secure()
 	 * @param	string	$text required: text to be converted
-	 * @param	integer	$quote_style optional: quoting style - can be ENT_COMPAT (default, escape
-	 *			only double quotes), ENT_QUOTES (escape both double and single quotes) or
-	 *			ENT_NOQUOTES (don't escape any quotes)
-	 * @param	string	$charset optional: charset to use while converting; default UTF-8
-	 *			(overriding PHP's default ISO-8859-1)
-	 * @return	string	converted string with escaped special characted but entity references intact
+	 * @param	integer	$quote_style optional: quoting style - can be ENT_COMPAT 
+	 * 			(default, escape only double quotes), ENT_QUOTES (escape both 
+	 * 			double and single quotes) or ENT_NOQUOTES (don't escape any 
+	 * 			quotes)
+	 * @param	string $doctype 'HTML' (default) or 'XML'; for XML only the XML
+	 * 			standard entities are unescaped so we'll have valid XML content
+	 * @return	string	converted string with escaped special characted but 
+	 * 			entity references intact
+	 * 
+	 * @todo	(maybe) recognize valid html entities and only leave those 
+	 * 			alone, thus transform &error; to &amp;error;
+	 * @todo	later - maybe) support full range of situations where (in SGML) 
+	 * 			a terminating ; may legally be omitted (end, newline and tag are 
+	 * 			merely the most common ones); such usage is quite rare though 
+	 * 			and may not be worth the effort
 	 */
-	function htmlspecialchars_ent($text,$quote_style=ENT_COMPAT,$charset='UTF-8',$doctype='HTML')
+	function htmlspecialchars_ent($text,$quote_style=ENT_COMPAT,$doctype='HTML')
 	{
-		// define patterns
-		$alpha  = '[a-z]+';							# character entity reference todo: $alpha='eacute|egrave|ccirc|...'
-		$ignore_case = 'i';
-		if ($doctype == 'XML')
-		{
-			$alpha = 'lt|gt|quot|amp';
-			$ignore_case = '';
-			if ($quote_style === '') $quote_style = ENT_COMPAT;
-			if ($charset === '') $charset = 'UTF-8';
+		// re-establish default if overwritten because of third parameter
+		// [ENT_COMPAT] => 2
+	    // [ENT_QUOTES] => 3
+	    // [ENT_NOQUOTES] => 0
+		if (!in_array($quote_style,array(ENT_COMPAT,ENT_QUOTES,ENT_NOQUOTES))) {
+			$quote_style = ENT_COMPAT;	
 		}
-		$numdec = '#[0-9]+';						# numeric character reference (decimal)
-		$numhex = '#x[0-9a-f]+';					# numeric character reference (hexadecimal)
-		$terminator = ';|(?=($|[\n<]|&lt;))';		# semicolon; or end-of-string, newline or tag
-		$entitystring = $alpha.'|'.$numdec.'|'.$numhex;
+		
+		// define patterns
+		$terminator = ';|(?=($|[\n<]|&lt;))';	// semicolon; or end-of-string, newline or tag
+		$numdec = '#[0-9]+';					// numeric character reference (decimal)
+		$numhex = '#x[0-9a-f]+';				// numeric character reference (hexadecimal)
+		if ($doctype == 'XML')					// pure XML allows only named entities for special chars
+		{
+			// only valid named entities in XML (case-sensitive)
+			$named = 'lt|gt|quot|apos|amp';			
+			$ignore_case = '';
+			$entitystring = $named.'|'.$numdec.'|'.$numhex;
+		}
+		else									// (X)HTML
+		{
+			$alpha  = '[a-z]+';					// character entity reference TODO $named='eacute|egrave|ccirc|...'
+			$ignore_case = 'i';					// names can consist of upper and lower case letters
+			$entitystring = $alpha.'|'.$numdec.'|'.$numhex;
+		}
 		$escaped_entity = '&amp;('.$entitystring.')('.$terminator.')';
 
-		// execute PHP built-in function, passing on optional parameters
-		$output = htmlspecialchars($text,$quote_style,$charset);
+		// execute our replacement hsc_secure() function, passing on optional parameters
+		$output = $this->hsc_secure($text,$quote_style);
+
 		// "repair" escaped entities
 		// modifiers: s = across lines, i = case-insensitive
 		$output = preg_replace('/'.$escaped_entity.'/s'.$ignore_case,"&$1;",$output);
+
 		// return output
 		return $output;
+	}
+
+	/**
+	 * Secure replacement for PHP built-in function htmlspecialchars().
+	 * 
+	 * See ticket #427 (http://wush.net/trac/wikka/ticket/427) for the rationale 
+	 * for this replacement function.
+	 * 
+	 * The INTERFACE for this function is almost the same as that for
+	 * htmlspecialchars(), with the same default for quote style; however, there
+	 * is no 'charset' parameter. The reason for this is as follows:
+	 * 
+	 * The PHP docs say:
+	 * 	"The third argument charset defines character set used in conversion."
+	 * 
+	 * I suspect PHP's htmlspecialchars() is working at the byte-value level and
+	 * thus _needs_ to know (or asssume) a character set because the special 
+	 * characters to be replaced could exist at different code points in
+	 * different character sets. (If indeed htmlspecialchars() works at 
+	 * byte-value level that goes some  way towards explaining why the 
+	 * vulnerability would exist in this function, too, and not only in 
+	 * htmlentities() which certainly is working at byte-value level.)
+	 * 
+	 * This replacement function however works at character level and should
+	 * therefore be "immune" to character set differences - so no charset 
+	 * parameter is needed or provided. If a third parameter is passed, it will
+	 * be silently ignored.
+	 * 
+	 * In the OUTPUT there is a minor difference in that we use '&#39;' instead
+	 * of PHP's '&#039;' for a single quote: this provides compatibility with
+	 * 	get_html_translation_table(HTML_SPECIALCHARS, ENT_QUOTES)
+	 * (see comment by mikiwoz at yahoo dot co dot uk on 
+	 * http://php.net/htmlspecialchars); it also matches the entity definition 
+	 * for XML 1.0 
+	 * (http://www.w3.org/TR/xhtml1/dtds.html#a_dtd_Special_characters). 
+	 * Like PHP we use a numeric character reference instead of '&apos;' for the 
+	 * single quote. For the other special characters we use the named entity 
+	 * references, as PHP is doing.
+	 * 
+	 * And finally:
+	 * The name for this function was basically inspired by waawaamilk (GeSHi), 
+	 * kindly provided by BenBE (GeSHi), happily acknowledged by WikkaWiki Dev 
+	 * Team and finally used by JavaWoman. :)
+	 * 
+	 * @author 		{@link http://wikkawiki.org/JavaWoman Marjolein Katsma}
+	 *
+	 * @since		Wikka 1.1.7
+	 * @version		1.0
+	 * @license		http://www.gnu.org/copyleft/lgpl.html 
+	 * 				GNU Lesser General Public License
+	 * @copyright	Copyright 2007, {@link http://wikkawiki.org/CreditsPage 
+	 * 				Wikka Development Team}
+	 * 
+	 * @access	public
+	 * @param	string	$string	string to be converted
+	 * @param	integer	$quote_style 
+	 * 			- ENT_COMPAT:   escapes &, <, > and double quote (default)
+	 * 			- ENT_NOQUOTES: escapes only &, < and >
+	 * 			- ENT_QUOTES:   escapes &, <, >, double and single quotes
+	 * @return	string	converted string   
+	 */
+	 function hsc_secure($string, $quote_style=ENT_COMPAT)
+	 {
+	 	// init
+	 	$aTransSpecchar = array('&' => '&amp;',
+	 							'"' => '&quot;',
+	 							'<' => '&lt;',
+								'>' => '&gt;'
+								);			// ENT_COMPAT set
+		if (ENT_NOQUOTES == $quote_style)	// don't convert double quotes
+		{
+			unset($aTransSpecchar['"']);
+		}
+		elseif (ENT_QUOTES == $quote_style)	// convert single quotes as well
+		{
+			$aTransSpecchar["'"] = '&#39;';	// (apos) htmlspecialchars() uses '&#039;'
+		}
+
+		// return translated string
+		return strtr($string,$aTransSpecchar);
+	 }
+
+	/**
+	 * Get a value provided by user (by get, post or cookie) and sanitize it.
+	 * The method is also helpful to disable warning when the value was absent.
+	 *
+	 * @access	public
+	 * @since	Wikka 1.1.7.0
+	 * @version	1.0
+	 *
+	 * @param	string	$varname required: field name on get or post or cookie name
+	 * @param	string	$gpc one of get, post, request and cookie. Optional, defaults to request.
+	 * @return	string	sanitized value of $_REQUEST[$varname] (or $_GET, $_POST, $_COOKIE, depending on $gpc)
+	 */
+	function GetSafeVar($varname, $gpc='request')
+	{
+		$safe_var = null;
+		if ($gpc == 'post')
+		{
+			$safe_var = isset($_POST[$varname]) ? $_POST[$varname] : null;
+		}
+		elseif ($gpc == 'request')
+		{
+			$safe_var = isset($_REQUEST[$varname]) ? $_REQUEST[$varname] : null;
+		}
+		elseif ($gpc == 'get')
+		{
+			$safe_var = isset($_GET[$varname]) ? $_GET[$varname] : null;
+		}
+		elseif ($gpc == 'cookie')
+		{
+			$safe_var = isset($_COOKIE[$varname]) ? $_COOKIE[$varname] : null;
+		}
+		return ($this->htmlspecialchars_ent($safe_var));
 	}
 
 	/**
@@ -243,10 +445,10 @@ class Wakka
 	 *
 	 * @access	public
 	 * @since	wikka 1.1.6.0
-	 * @uses	wakka::config
+	 * @uses	Wakka::config
 	 * @uses	GeShi
-	 * @todo	- support for GeSHi line number styles
-	 *			- enable error handling
+	 * @todo		support for GeSHi line number styles
+	 * @todo		enable error handling
 	 *
 	 * @param	string	$sourcecode	required: source code to be highlighted
 	 * @param	string	$language	required: language spec to select highlighter
@@ -297,10 +499,13 @@ class Wakka
 		}
 
 		// parse and return highlighted code
-		return $geshi->parse_code();
+		// comments added to make GeSHi-highlighted block visible in code JW/20070220
+		return '<!--start GeSHi-->'."\n".$geshi->parse_code()."\n".'<!--end GeSHi-->'."\n";	
 	}
 
-	// VARIABLES
+	/**
+	 * Variable-related methods
+	 */
 	function GetPageTag() { return $this->tag; }
 	function GetPageTime() { return $this->page["time"]; }
 	function GetMethod() { return $this->method; }
@@ -308,7 +513,9 @@ class Wakka
 	function GetWakkaName() { return $this->GetConfigValue("wakka_name"); }
 	function GetWakkaVersion() { return $this->VERSION; }
 
-	// PAGES
+	/**
+	 * Page-related methods
+	 */
 	function LoadPage($tag, $time = "", $cache = 1) {
 		// retrieve from cache
 		if (!$time && $cache) {
@@ -525,7 +732,7 @@ class Wakka
 				if ($ping["authorpage"]) $rpcRequest .= "<member>\n<name>authorpage</name>\n<value>".$ping["authorpage"]."</value>\n</member>\n";
 			}
 			if ($ping["history"]) $rpcRequest .= "<member>\n<name>history</name>\n<value>".$ping["history"]."</value>\n</member>\n";
-			if ($ping["changelog"]) $rpcRequest .= "<member>\n<name>changelog</name>\n<value>".$this->htmlspecialchars_ent($ping["changelog"], '', '', 'XML')."</value>\n</member>\n";
+			if ($ping["changelog"]) $rpcRequest .= "<member>\n<name>changelog</name>\n<value>".$this->htmlspecialchars_ent($ping['changelog'],ENT_COMPAT,'XML')."</value>\n</member>\n";
 			$rpcRequest .= "</struct>\n</value>\n</param>\n";
 			$rpcRequest .= "</params>\n";
 			$rpcRequest .= "</methodCall>\n";
@@ -616,13 +823,28 @@ class Wakka
 		}
 		return $href;
 	}
+	/**
+	 * Link 
+	 * 
+	 * Beware of the $title parameter: quotes and backslashes should be previously escaped before passed to 
+	 * this method.
+	 *
+	 * @param mixed $tag 
+	 * @param string $method 
+	 * @param string $text 
+	 * @param boolean $track 
+	 * @param boolean $escapeText 
+	 * @param string $title 
+	 * @access public
+	 * @return string
+	 */
 	function Link($tag, $method='', $text='', $track=TRUE, $escapeText=TRUE, $title='') {
 		if (!$text) $text = $tag;
 		// escape text?
 		if ($escapeText) $text = $this->htmlspecialchars_ent($text);
 		$tag = $this->htmlspecialchars_ent($tag); #142 & #148
 		$method = $this->htmlspecialchars_ent($method);
-		$title = $this->htmlspecialchars_ent($title);
+		$title_attr = $title ? ' title="'.$this->htmlspecialchars_ent($title).'"' : '';
 		$url = '';
 
 		// is this an interwiki link?
@@ -654,7 +876,7 @@ class Wakka
 			if ($_SESSION["linktracking"] && $track) $this->TrackLinkTo($tag);
 			$linkedPage = $this->LoadPage($tag);
 			// return ($linkedPage ? "<a href=\"".$this->Href($method, $linkedPage['tag'])."\">".$text."</a>" : "<span class=\"missingpage\">".$text."</span><a href=\"".$this->Href("edit", $tag)."\" title=\"Create this page\">?</a>");
-			return ($linkedPage ? "<a href=\"".$this->Href($method, $linkedPage['tag'])."\" title=\"$title\">".$text."</a>" : "<a class=\"missingpage\" href=\"".$this->Href("edit", $tag)."\" title=\"Create this page\">".$text."</a>");
+			return ($linkedPage ? "<a href=\"".$this->Href($method, $linkedPage['tag'])."\"$title_attr>".$text."</a>" : "<a class=\"missingpage\" href=\"".$this->Href("edit", $tag)."\" title=\"Create this page\">".$text."</a>");
 		}
 		$external_link_tail = $this->GetConfigValue("external_link_tail");
 		return $url ? "<a class=\"ext\" href=\"$url\">$text</a>$external_link_tail" : $text;
@@ -671,9 +893,11 @@ class Wakka
 	{
 		// delete old link table
 		$this->Query("delete from ".$this->config["table_prefix"]."links where from_tag = '".mysql_real_escape_string($this->GetPageTag())."'");
+		// build new link table
 		if ($linktable = $this->GetLinkTable())
 		{
 			$from_tag = mysql_real_escape_string($this->GetPageTag());
+			$written = array();
 			foreach ($linktable as $to_tag)
 			{
 				$lower_to_tag = strtolower($to_tag);
@@ -761,37 +985,47 @@ class Wakka
 	}
 
 	// PLUGINS
-	function Action($action, $forceLinkTracking = 0)
+	function Action($actionspec, $forceLinkTracking = 0)
 	{
-		$action = trim($action);
-		$vars=array();
-
-		// only search for parameters if there is a space
-		if (is_int(strpos($action, ' ')))
+		// parse action spec and check if we have a syntactically valid action name	[SEC]
+		// allows action name consisting of letters and numbers ONLY
+		// and thus provides defense against directory traversal or XSS
+		if (!preg_match('/^\s*([a-zA-Z0-9]+)(\s.+?)?\s*$/', $actionspec, $matches))	# see also #34
 		{
-			// treat everything after the first whitespace as parameter
-			preg_match('/^([A-Za-z0-9]*)\s+(.*)$/', $action, $matches);
-			// extract $action and $vars_temp ("raw" attributes)
-			list(, $action, $vars_temp) = $matches;
-
-			if ($action) {
-				// match all attributes (key and value)
-				preg_match_all('/([A-Za-z0-9]*)=("|\')(.*)\\2/U', $vars_temp, $matches);
-
-				// prepare an array for extract() to work with (in $this->IncludeBuffered())
-				if (is_array($matches)) {
-					for ($a = 0; $a < count($matches[0]); $a++) {
-						$vars[$matches[1][$a]] = $matches[3][$a];
-					}
-				}
-				$vars['wikka_vars'] = trim($vars_temp); // <<< add the buffered parameter-string to the array
-			} else {
-				return '<!-- <wiki-error>unknown action</wiki-error> --><em class="error">Unknown action; the action name must not contain special characters.</em>'; // <<< the pattern ([A-Za-z0-9])\s+ didn't match!
-			}
+			return '<!-- <wiki-error>unknown action</wiki-error> --><em class="error">Unknown action; the action name must not contain special characters.</em>';	# [SEC]
 		}
-		if (!preg_match('/^[a-zA-Z0-9]+$/', $action)) return '<!-- <wiki-error>unknown action</wiki-error> --><em class="error">Unknown action; the action name must not contain special characters.</em>';
+		else
+		{
+			// valid action name, so we pull out the parts
+			$action_name	= strtolower($matches[1]);
+			$paramlist		= trim($matches[2]);
+		}
+
+		// search for parameters if there was more than just a (syntactically valid) action name
+		if ('' != $paramlist)
+		{
+			// match all attributes (key and value)
+			preg_match_all('/([a-zA-Z0-9]+)=(\"|\')(.*)\\2/U', $paramlist, $matches);	# [SEC] parameter name should not be empty
+
+			// prepare an array for extract() (in $this->IncludeBuffered()) to work with
+			$vars = array();
+			if (is_array($matches)) 
+			{
+				for ($a = 0; $a < count($matches[0]); $a++) 
+				{
+					// parameter value is sanitized using htmlspecialchars_ent(); if an
+					// action really needs "raw" HTML as input it can still be "unescaped"by the action
+					// itself; for any other action this guards against XSS or directory traversal
+					// via user-supplied action parameters. Any HTML will be displayed _as code_, 
+					// but not interpreted.
+					$vars[$matches[1][$a]] = $this->htmlspecialchars_ent($matches[3][$a]);	// parameter name = sanitized value [SEC]
+				}
+			}
+			$vars['wikka_vars'] = $paramlist; // <<< add the complete parameter-string to the array
+		}
 		if (!$forceLinkTracking) $this->StopLinkTracking();
-		$result = $this->IncludeBuffered(strtolower($action).'.php', '<!-- <wiki-error>unknown action</wiki-error> --><em class="error">Unknown action "'.$action.'"</em>', $vars, $this->config['action_path']);
+
+		$result = $this->IncludeBuffered($action_name.'.php', '<!-- <wiki-error>unknown action</wiki-error> --><em class="error">Unknown action "'.$action_name.'"</em>', $vars, $this->config['action_path']);
 		$this->StartLinkTracking();
 		return $result;
 	}
@@ -799,13 +1033,42 @@ class Wakka
 	{
 		if (strstr($method, '/'))
 		{
+			# Observations - MK 2007-03-30 
+			# extract part after the last slash (if the whole request contained multiple slashes)
+			# TODO:
+			# but should such requests be accepted in the first place?
+			# at least it is a SORT of defense against directory traversal (but not necessarily XSS)
+			# NOTE that name syntax check now takes care of XSS 
 			$method = substr($method, strrpos($method, '/')+1);
 		}
-		if (!$handler = $this->page["handler"]) $handler = "page";
-		$methodLocation = $handler."/".$method.".php";
-		return $this->IncludeBuffered($methodLocation, "<!-- <wiki-error>unknown method</wiki-error> --><em>Unknown method \"$methodLocation\"</em>", "", $this->config["handler_path"]);
+		// check valid method name syntax (similar to Action())
+		if (!preg_match('/^([a-zA-Z0-9_.-]+)$/', $method)) // allow letters, numbers, underscores, dashes and dots only (for now); see also #34
+		{
+			return '<!-- <wiki-error>unknown method</wiki-error> --><em class="error">Unknown method; the method name must not contain special characters.</em>';	# [SEC]
+		}
+		else
+		{
+			// valid method name; now make sure it's lower case
+			$method	= strtolower($method);
+		}
+		if (!$handler = $this->page['handler']) $handler = 'page';	# there are no other handlers (yet)
+		$methodLocation = $handler.DIRECTORY_SEPARATOR.$method.'.php';	#89
+		return $this->IncludeBuffered($methodLocation, '<!-- <wiki-error>unknown method</wiki-error> --><em class="error">Unknown method "'.$methodLocation.'"</em>', '', $this->config['handler_path']);
 	}
-	function Format($text, $formatter="wakka") { return $this->IncludeBuffered($formatter.".php", "<em>Formatter \"$formatter\" not found</em>", compact("text"), $this->config['wikka_formatter_path']); }
+	function Format($text, $formatter='wakka') 
+	{ 
+		// check valid formatter name syntax (similar to Action())
+		if (!preg_match('/^([a-zA-Z0-9_.-]+)$/', $formatter)) // allow letters, numbers, underscores, dashes and dots only (for now); see also #34
+		{
+			return '<em class="error">Unknown formatter; the formatter name must not contain special characters.</em>';	# [SEC]			
+		}
+		else
+		{
+			// valid method name; now make sure it's lower case
+			$formatter	= strtolower($formatter);
+		}
+		return $this->IncludeBuffered($formatter.'.php', '<em class="error">Formatter "'.$formatter.'" not found</em>', compact("text"), $this->config['wikka_formatter_path']); 
+	}
 
 	// USERS
 	function LoadUser($name, $password = 0) { return $this->LoadSingle("select * from ".$this->config['table_prefix']."users where name = '".mysql_real_escape_string($name)."' ".($password === 0 ? "" : "and password = '".mysql_real_escape_string($password)."'")." limit 1"); }
@@ -818,18 +1081,47 @@ class Wakka
 
 
 	// COMMENTS
+	/**
+	 * Load the comments for a (given) page.
+	 *
+	 * @uses	Wakka::LoadAll()
+	 * @param	string $tag mandatory: name of the page
+	 * @return	array all the comments for this page
+	 */
 	function LoadComments($tag) { return $this->LoadAll("SELECT * FROM ".$this->config["table_prefix"]."comments WHERE page_tag = '".mysql_real_escape_string($tag)."' ORDER BY time"); }
-	function LoadRecentComments($limit = 50) { return $this->LoadAll("SELECT * FROM ".$this->config["table_prefix"]."comments ORDER BY time DESC LIMIT ".$limit); }
+	/**
+	 * Load the last 50 comments on the wiki.
+	 *
+	 * @uses	Wakka::LoadAll()
+	 * @param	integer $limit optional: number of last comments. default: 50
+	 * @return	array the last x comments
+	 */
+	function LoadRecentComments($limit = 50) { return $this->LoadAll("SELECT * FROM ".$this->config["table_prefix"]."comments ORDER BY time DESC LIMIT ".intval($limit)); }
+	/**
+	 * Load the last 50 comments on different pages on the wiki.
+	 *
+	 * @uses	Wakka::LoadAll()
+	 * @param	integer $limit optional: number of last comments on different pages. default: 50
+	 * @return	array the last x comments on different pages
+	 */
 	function LoadRecentlyCommented($limit = 50)
 	{
 		$sql = "SELECT comments.id, comments.page_tag, comments.time, comments.comment, comments.user"
-        	. " FROM ".$this->config["table_prefix"]."comments AS comments"
-        	. " LEFT JOIN ".$this->config["table_prefix"]."comments AS c2 ON comments.page_tag = c2.page_tag AND comments.id < c2.id"
-        	. " WHERE c2.page_tag IS NULL "
-        	. " ORDER BY time DESC "
-        	. " LIMIT ".$limit;
+			. " FROM ".$this->config["table_prefix"]."comments AS comments"
+			. " LEFT JOIN ".$this->config["table_prefix"]."comments AS c2 ON comments.page_tag = c2.page_tag AND comments.id < c2.id"
+			. " WHERE c2.page_tag IS NULL "
+			. " ORDER BY time DESC "
+			. " LIMIT ".intval($limit);
 		return $this->LoadAll($sql);
 	}
+	/**
+	 * Save a (given) comment for a (given) page.
+	 *
+	 * @uses	Wakka::GetUserName()
+	 * @uses	Wakka::Query()
+	 * @param	string $page_tag mandatory: name of the page
+	 * @param	string $comment mandatory: text of the comment
+	 */
 	function SaveComment($page_tag, $comment)
 	{
 		// get current user
@@ -844,19 +1136,30 @@ class Wakka
 	}
 
 	// ACCESS CONTROL
-	// returns true if logged in user is owner of current page, or page specified in $tag
+	/** 
+	 * Check if current user is the owner of the current or a specified page. 
+	 *  
+	 * @access		public
+	 * @uses		Wakka::GetPageOwner()
+	 * @uses		Wakka::GetPageTag() 
+	 * @uses		Wakka::GetUser()
+	 * @uses		Wakka::GetUserName()
+	 * @uses		Wakka::IsAdmin()
+	 * 
+	 * @param		string  $tag optional: page to be checked. Default: current page. 
+	 * @return		boolean TRUE if the user is the owner, FALSE otherwise. 
+	 */ 
 	function UserIsOwner($tag = "")
 	{
-		// check if user is logged in
+		// if not logged in, user can't be owner! 
 		if (!$this->GetUser()) return false;
 
 		// if user is admin, return true. Admin can do anything!
 		if ($this->IsAdmin()) return true;
 
-		// set default tag
+		// set default tag & check if user is owner
 		if (!$tag = trim($tag)) $tag = $this->GetPageTag();
 
-		// check if user is owner
 		return ($this->GetPageOwner($tag) == $this->GetUserName());
 	}
 	//returns true if user is listed in configuration list as admin
@@ -1004,7 +1307,8 @@ class Wakka
 			$_COOKIE['wikka_pass'] = "";
 			$this->SetUser($user);
 		}
-		$this->SetPage($this->LoadPage($tag, (isset($_REQUEST["time"]) ? $_REQUEST["time"] :'')));
+		#$this->SetPage($this->LoadPage($tag, (isset($_REQUEST["time"]) ? $_REQUEST["time"] :'')));
+		$this->SetPage($this->LoadPage($tag, (isset($_GET['time']) ? $_GET['time'] :''))); #312
 
 		$this->LogReferrer();
 		$this->ACLs = $this->LoadAllACLs($this->tag);
@@ -1027,11 +1331,11 @@ class Wakka
 		{
 			print($this->Method($this->method));
 		}
-		elseif (preg_match('/\.(gif|jpg|png)$/', $this->method))
+		elseif (preg_match('/\.(gif|jpg|png)$/', $this->method))		# should not be necessary
 		{
 			header('Location: images/' . $this->method);
 		}
-		elseif (preg_match('/\.css$/', $this->method))
+		elseif (preg_match('/\.css$/', $this->method))					# should not be necessary
 		{
 			header('Location: css/' . $this->method);
 		}

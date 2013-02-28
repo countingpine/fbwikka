@@ -1,4 +1,25 @@
 <?php
+/**
+ * Wikka Formatting Engine
+ * 
+ * This is the main formatting engine used by Wikka to parse wiki markup and render valid XHTML.
+ * 
+ * @package Formatters
+ * @version $Id$
+ * @license http://www.gnu.org/copyleft/gpl.html GNU General Public License
+ * @filesource
+ *
+ * @author {@link http://wikkawiki.org/JsnX Jason Tourtelotte}
+ * @author {@link http://wikkawiki.org/DotMG Mahefa Randimbisoa}
+ * @author {@link http://wikkawiki.org/JavaWoman Marjolein Katsma}
+ * @author {@link http://wikkawiki.org/NilsLindenberg Nils Lindenberg} (code cleanup)
+ * @author {@link http://wikkawiki.org/DarTar Dario Taraborelli} (grab handler and filename support for codeblocks)
+ * 
+ * @uses	Wakka::htmlspecialchars_ent()
+ * 
+ * @todo		add support for formatter plugins;
+ * @todo		use a central RegEx library #34;
+ */
 
 // i18n strings
 if (!defined('GRABCODE_BUTTON_VALUE')) define('GRABCODE_BUTTON_VALUE', 'Grab');
@@ -232,10 +253,11 @@ if (!function_exists("wakka2callback")) # DotMG [many lines] : Unclosed tags fix
 			$code = preg_replace('/^\s*\n+|\n+\s*$/','',$code);
 			
 			// check if GeSHi path is set and we have a GeSHi highlighter for this language
-			if (isset($language) && isset($wakka->config['geshi_path']) && file_exists($geshi_hi_path.'/'.$language.'.php'))
+#			if (isset($language) && isset($wakka->config['geshi_path']) && file_exists($geshi_hi_path.'/'.$language.'.php'))
+			if (isset($language) && isset($wakka->config['geshi_path']) && file_exists($geshi_hi_path.DIRECTORY_SEPARATOR.$language.'.php')) #89
 			{
 				// check if specified filename is valid and generate code block header
-				if (isset($filename) && strlen($filename) > 0 && strlen($invalid) == 0) # TODO: use central regex library for filename validation
+				if (isset($filename) && strlen($filename) > 0 && strlen($invalid) == 0) # #34 TODO: use central regex library for filename validation
 				{
 					$valid_filename = $filename;
 					// create code block header
@@ -252,7 +274,8 @@ if (!function_exists("wakka2callback")) # DotMG [many lines] : Unclosed tags fix
 				$output .= $wakka->GeSHi_Highlight($code, $language, $start);
 			}
 			// check Wikka highlighter path is set and if we have an internal Wikka highlighter
-			elseif (isset($language) && isset($wakka->config['wikka_formatter_path']) && file_exists($wikka_hi_path.'/'.$language.'.php') && 'wakka' != $language)
+#			elseif (isset($language) && isset($wakka->config['wikka_formatter_path']) && file_exists($wikka_hi_path.'/'.$language.'.php') && 'wakka' != $language)
+			elseif (isset($language) && isset($wakka->config['wikka_formatter_path']) && file_exists($wikka_hi_path.DIRECTORY_SEPARATOR.$language.'.php') && 'wakka' != $language) #89
 			{
 				// use internal Wikka highlighter
 				$output = '<div class="code">'."\n";
@@ -402,7 +425,7 @@ if (!function_exists("wakka2callback")) # DotMG [many lines] : Unclosed tags fix
 		else if (preg_match("/-{4,}/", $thing, $matches))
 		{
 			// TODO: This could probably be improved for situations where someone puts text on the same line as a separator.
-			//       Which is a stupid thing to do anyway! HAW HAW! Ahem.
+			//	   Which is a stupid thing to do anyway! HAW HAW! Ahem.
 			$br = 0;
 			return "<hr />\n";
 		}
