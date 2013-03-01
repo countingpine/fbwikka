@@ -1595,9 +1595,10 @@ class Wakka
 	 */
 	function SetPageTitle($page_title)
 	{
-		if (trim($page_title))
+		$stripped_page_title = trim(strip_tags($page_title));
+		if(null != $stripped_page_title)
 		{
-			$this->page_title = $page_title;
+			$this->page_title = $stripped_page_title;
 		}
 	}
 
@@ -2127,7 +2128,7 @@ class Wakka
 				"' AND LATEST = 'Y'";
 		$res = $this->LoadSingle($query);
 		$page_title = trim($res['title']) !== '' ? $res['title'] : $tag;
-		return trim($page_title);
+		return trim(strip_tags($page_title));
 	}
 
 	/**
@@ -3495,7 +3496,24 @@ class Wakka
 					// NOTE 2:	It is still the responsibility of each action
 					//			to validate its own parameters!
 					//			That includes guarding against directory traversal.
-					$vars[$matches[1][$a]] = $this->htmlspecialchars_ent($matches[3][$a]);	// parameter name = sanitized value [SEC]
+					// Check to see if linktracking is desired (for
+					// instance, when using {{image}} tags to link to
+					// other wiki pages
+					if(FALSE !== strpos($matches[1][$a], "forceLinkTracking")) 
+					{
+						if(TRUE == $this->htmlspecialchars_ent($matches[3][$a]))
+						{
+							$forceLinkTracking = 1;	
+						}
+						else
+						{
+							$forceLinkTracking = 0;
+						}
+					}
+					else 
+					{
+						$vars[$matches[1][$a]] = $this->htmlspecialchars_ent($matches[3][$a]);	// parameter name = sanitized value [SEC]
+					}
 				}
 			}
 			$vars['wikka_vars'] = $paramlist; // <<< add the complete parameter-string to the array
@@ -4610,6 +4628,25 @@ class Wakka
 	}
 
 	/**
+	 * Check to see if a user is a member of an ACL usergroup (i.e., 
+	 * the username appears within a set of "+" symbols).
+	 *
+	 * @param string $who	mandatory: Username
+	 * @param string $group mandatory: Name of page with list of users
+	 * @return boolean true if $who is member of $group
+	 */
+    function isGroupMember($who, $group)
+    {
+        $thegroup=$this->LoadPage($group);
+        if (isset($thegroup)) {
+            $search = "+".$who."+"; // In the GroupListPages, the participants logins have to be embbeded inside '+' signs
+            return (boolean)(substr_count($thegroup["body"], $search));
+        }
+        else return false;
+    }
+
+
+	/**
 	 * Determine if the (current) user has specified access for the specified page.
 	 *
 	 * Returns true if $username (defaults to current user) has $privilege
@@ -4632,15 +4669,18 @@ class Wakka
 		// set defaults
 		if (!$tag) $tag = $this->GetPageTag();
 		if (!$username) $username = $this->GetUserName();
-		// if current user is owner, return true. owner can do anything!
-		if ($this->UserIsOwner($tag)) return TRUE;
+                                       
+        // Get a user object for the named user
+        $user = ($username == $this->GetUserName()) ? $this->GetUser() : $this->LoadUser($username);
+                                       
+		// If user is owner or admin, return true. 
+		// Owner and admin can do anything!
+        if ($user != FALSE) {
+           if ($this->IsAdmin($username) || $this->GetPageOwner($tag) == $username) return TRUE;
+        }
 
-		// see whether user is registered and logged in
-		$this->registered = FALSE;
-		if ($this->GetUser())
-		{
-			$this->registered = TRUE;
-		}
+		// see whether user is registered
+        $registered = $user != FALSE;
 
 		// load acl
 		if ($tag == $this->GetPageTag())
@@ -4681,13 +4721,19 @@ class Wakka
 				// only registered users
 				case "+":
 					// return ($this->registered) ? !$negate : false;
-					return ($this->registered) ? !$negate : $negate;
+					return ($registered) ? !$negate : $negate;
 				// aha! a user entry.
 				default:
 					if (strtolower($line) == strtolower($username))
 					{
 						return !$negate;
 					}
+                    // this may be a UserGroup so we check if $user 
+					// is part of the group
+                    else if (($this->isGroupMember($username, $line)))
+                    {
+                        return !$negate;
+                    }
 				}
 			}
 		}
