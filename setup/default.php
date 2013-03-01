@@ -4,6 +4,8 @@
 session_set_cookie_params(0, '/');
 session_name(md5('WikkaWiki'));
 session_start();
+
+include_once('setup/inc/functions.inc.php');
 	
 // Copy POST params to SESSION in preparation for redirect to install page
 $_SESSION['post'] = array();
@@ -18,6 +20,10 @@ if (isset($_POST['config']))
 	{
 		$wakkaConfig[$key] = $value;
 	}
+}
+if (!isset($wakkaConfig['mysql_password']))
+{
+	$wakkaConfig['mysql_password'] = '';
 }
 
 // Validate data
@@ -120,8 +126,7 @@ if (!$wakkaConfig["wakka_version"])
 } 
 
 // Only redirect as a result of this page being POSTed!
-if(false === $_SESSION['error_flag'] &&
-   isset($_POST['submit']))
+if(isset($_SESSION['error_flag']) && false === $_SESSION['error_flag'] && isset($_POST['submit']))
 {
 	header("Location: ".myLocation()."?installAction=install");
 }
@@ -196,7 +201,8 @@ if(false === $_SESSION['error_flag'] &&
 	<tr><td align="right" nowrap="nowrap">Meta Keywords:</td><td><input type="text" size="50" name="config[meta_keywords]" value="<?php if(isset($wakkaConfig["meta_keywords"])) echo $wakkaConfig["meta_keywords"] ?>" /></td></tr>
 	<tr><td align="right" nowrap="nowrap">Meta Description:</td><td><input type="text" size="50" name="config[meta_description]" value="<?php if(isset($wakkaConfig["meta_description"])) echo $wakkaConfig["meta_description"] ?>" /></td></tr>
 	<tr><td></td><td>Choose the <em>look and feel</em> of your wiki (you'll be able to change this later).</td></tr>
-	<tr><td align="right" nowrap="nowrap">Theme:</td><td><?php SelectTheme(); ?></td></tr>
+	<tr><td align="right" nowrap="nowrap">Theme:</td><td><?php SelectTheme($wakkaConfig["theme"]); ?></td></tr>
+	<tr><td align="right" nowrap="nowrap">Language pack:</td><td><?php Language_selectbox($wakkaConfig["default_lang"]); ?></td></tr>
 
 	<?php
 	 $curversion_num = ($wakkaConfig['wakka_version']) ? str_replace('.','',$wakkaConfig['wakka_version']) : 0;
@@ -246,8 +252,7 @@ if(false === $_SESSION['error_flag'] &&
 	?>
 
 	<tr><td></td><td><br /><h2>5. Version update check</h2></td></tr>
-	<tr><td></td><td><span class="note">It is <strong>strongly recommended</strong> that you leave this option checked if your run your wiki on the internet. Administrator(s) will be notified automatically on the wiki if a new version of WikkaWiki is available for download. 	See the <a href="http://docs.wikkawiki.org/CheckVersionActionInfo" target="_blank">documentation</a> for details.
-	</span></td></tr>
+	<tr><td></td><td><span class="note">It is <strong>strongly recommended</strong> that you leave this option checked if your run your wiki on the internet. Administrator(s) will be notified automatically on the wiki if a new version of WikkaWiki is available for download. 	See the <a href="http://docs.wikkawiki.org/CheckVersionActionInfo" target="_blank">documentation</a> for details. Please note that if you leave this option enabled, your installation will periodically contact a WikkaWiki server for update information.  As a result, your IP address and/or domain name may be recorded in our referrer logs.  </span></td></tr>
 	<tr><td align="right" nowrap="nowrap"><label for="id_enable_version_check">Enable version checking:</label></td><td><input type="checkbox"<?php echo !isset($wakkaConfig["enable_version_check"]) || $wakkaConfig["enable_version_check"] == "1" ? ' checked="checked"' : ""; ?> name="config[enable_version_check]" value="1" id="id_enable_version_check" /></td></tr>
 	<tr><td></td><td><input type="submit" name="submit" value="Continue" /></td></tr>
 

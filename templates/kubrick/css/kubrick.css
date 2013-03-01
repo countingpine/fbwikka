@@ -25,7 +25,7 @@ body {
 	width: 760px;
 	margin: 10px auto;
 	padding: 0;
-	text-align: justify;
+	text-align: left;
 }
 	
 #header {
@@ -48,7 +48,7 @@ body {
 	width: 450px;
 	min-height: 300px;
 	margin: 20px 0 0;
-	line-height: 1.4em;
+	line-height: 1.6em;
 	padding: 0 0 20px 45px;
 	font-size: 1.2em;
 }
@@ -71,6 +71,7 @@ body {
 
 /* comments */
 
+/* wrapper for the whole comments block, contains the header and the actual comments */
 #comments {
 	clear: left;
 	width: 450px;
@@ -79,29 +80,87 @@ body {
 	line-height: 1.5em;
 }
 
-#commentsheader {
-	font-size: 1em;
+#comments form {
+	display: inline;
 }
 
-.comment {
-	font-size: 1.1em;
-	font-family: 'Lucida Grande', Verdana, Arial, Sans-Serif;
-	margin: 10px;
-	line-height: 1.5em;
-	padding: .8em 1.2em;
-	background-color: #f8f8f8;
-	border-top: 1px solid #ddd;
-	border-bottom: 1px solid #ddd;
+#comments form input[type=submit] {
+	font-size: 80%;
+	padding: 1px 2px;
+}
+
+/* contains the header to the comments block */
+#commentsheader {
+	clear: both;
+	background-color: #FAFAFA;
+	padding: 2px 10px 0 10px;
+	border-top: 1px solid #CCCCCC;
+}
+
+#commentsheader form {
+	padding: 5px 0;	
+}
+
+/* wrapper for the comment lists */
+.commentscontainer {
+	background-color: transparent;
+	margin-top: 10px;	
+	padding: 0;	
+}
+
+/* alternate style for single comments */
+.comment-layout-1 {
+	background-color: #FAFAFA;
+	padding: 7px;
+	border: 1px solid #DDD;
+	margin: 5px;
+}
+
+.comment-layout-2 {
+	background-color: #FFF;
+	padding: 7px;
+	border: 1px solid #DDD;
+	margin: 5px;
 }
 
 .commentinfo {
 	font-size: .8em;
 	padding: 5px;
+	color: #999;
+	font-family: "Lucida Console", Monaco, monospace;
 }
 
-#commentform textarea {
-	width: 100%;
+.commentauthor {
+	font-size: 1.2em;
 }
+
+.commentbody {
+}
+
+.commentaction {
+	margin-top: 5px;
+}
+
+.commentform {
+	padding: 10px;
+	background-color: #EEE;
+}
+
+textarea#commentbox {
+	width: 400px;
+}
+
+.commentdeleted {
+	color: #AAA;
+}
+
+.commentparent {
+	font-size: 1em;
+	line-height: 20px;
+	color: #555;
+	margin: 5px 5px 5px 5px;
+}
+
 
 /* links */
 
@@ -131,6 +190,15 @@ a#pagetitle {
 }
 
 a.keys {
+	text-decoration: none;
+}
+
+#content a.heading {
+	color: #333;
+}
+
+#content a.heading:hover {
+	color: #333;
 	text-decoration: none;
 }
 
@@ -393,16 +461,20 @@ fieldset legend {
 	padding:2px;
 }
 
-textarea {
+select {
 	border: 1px solid #CCC;	
 }
 
-textarea:hover {
+select:hover {
 	background-color: #F3F3F3;
 }
 
-textarea:focus {
+select:focus {
 	background-color: #E6E6FF;
+}
+
+textarea {
+	border: 1px solid #CCC;	
 }
 
 input {
@@ -498,14 +570,16 @@ em.error {
 	color: #A33; 
 	font-style: normal;
 	font-weight: bold;
-	font-size: 95%;
+	font-size: 90%;
+	text-align: left;
 }
 
 em.success {
 	color: #3A3; 
 	font-style: normal;
 	font-weight: bold;
-	font-size: 95%;
+	font-size: 90%;
+	text-align: left;
 }
 
 /* redirection messages */
@@ -533,6 +607,14 @@ div.success {
 	padding: 5px 10px;
 	font-size: 90%;
 	margin-bottom: 1em;
+}
+
+.history_revisioninfo { 
+        float: left; 
+        text-align: left; 
+        padding: 4px; 
+        background: #EEE; 
+        border: 1px solid #CCC;                  
 }
 
 .copyright {
@@ -567,8 +649,6 @@ del {
 	background-color: #FC9;
 	text-decoration: none;
 }
-
-.recentchanges {font-size: 0.9em;}
 
 .pagenote {color: #888;}
 
@@ -887,6 +967,19 @@ table.calendar a:active {
 	text-decoration: none;
 }
 
+/* RecentChanges action */
+
+ul.recentchanges {
+	list-style-type: none;
+	padding-left: 0;
+	margin-left: 1em;
+	margin-bottom: 1em;
+}
+
+ul.recentchanges li {
+	font-size: 0.9em;
+}
+
 /* Usersettings action */
 table.usersettings {
 	width: 100%;
@@ -896,6 +989,118 @@ table.usersettings tbody tr > td {
 	width: 100%;
 }
 
+fieldset#account {
+	width: 420px;
+	display: block;
+	padding: 10px;
+	background-color: #F6F6F6;
+	text-align: left;
+}
+
+fieldset#account span#account_info {
+	font-size: 90%;
+	display: block;
+	width: 230px;
+	float: left;
+	margin-bottom: 10px;
+	text-align: right;
+	padding-right: 10px;
+}
+
+fieldset#account input#logout {
+	float: left;
+	margin-left: 0;
+}
+
+fieldset.usersettings {
+	width: 420px;
+	display: block;
+	padding: 10px;
+}
+
+fieldset.usersettings fieldset {
+	clear: left;
+	display: block;
+	float: left;
+	margin: 0 0 10px 190px;
+	width: 180px;
+}
+
+fieldset.usersettings fieldset legend {
+	margin: 0;
+}
+
+fieldset.usersettings fieldset input{
+	display: block;
+	float: left;
+	padding: 0;
+	margin: 0;
+}
+
+fieldset.usersettings fieldset label {
+	vertical-align: top;
+	margin: 0 0 0 10px;
+	display: inline;
+	text-align: left;
+	width: auto;
+	float:left;
+}
+
+fieldset.usersettings em {
+	clear: left;
+	float: left;
+	display: block;
+	margin: 0 0 0 190px;
+}
+
+fieldset.usersettings em.usersettings_info {
+	clear: left;
+	float: left;
+	text-align: center;
+	display: block;
+	width: 200px;
+	margin: 0 0 5px 190px;
+	font-style: normal;
+	font-size: 75%;
+	color: #666;
+	border: 1px solid #CCC;
+	background-color: #F0F0F0;
+	padding: 2px;
+}
+
+fieldset.usersettings label {
+	display: block;
+	width: 180px;
+	float: left;
+	margin-bottom: 10px;
+	text-align: right;
+	padding-right: 10px;
+	font-size: 90%;
+}
+
+fieldset.usersettings select#update_option {
+	display: block;
+	width: 180px;
+	float: left;
+	margin: 0px 10px 10px 0px;
+}
+
+fieldset.usersettings input[type=text], fieldset.usersettings input[type=password] {
+	display: block;
+	width: 200px;
+	float: left;
+	margin-bottom: 10px;
+	border:1px solid #CCC;
+}
+
+fieldset.usersettings input[type=submit] {
+	float: left;
+	margin-left: 190px;
+}
+
+fieldset.usersettings br {
+	clear: left;
+}
 
 /* Wikkaconfig action */
 table.wikkaconfig {
@@ -1020,6 +1225,41 @@ ul#main_menu li:before {
 	content: "\00BB \0020";
 }
 
+ul#dashboard:before {
+	font-size: 1.2em;
+	line-height: 250%;
+	font-weight: bold;
+	content: "Dashboard";
+}
+
+ul#dashboard {
+	width: 200px;
+	font-size: 10px;
+	text-align: left;
+	font: 1em 'Lucida Grande', Verdana, Arial, Sans-Serif;
+}
+
+ul#dashboard li {
+	line-height: 170%;
+	list-style-type: none;
+	list-style-image: none;
+	margin: 0 10px;
+}
+
+ul#dashboard li form {
+	display:inline;	
+}
+
+ul#dashboard li input {
+	margin-top: 1px;	
+	width: 100px;	
+}
+
+ul#dashboard li:before {
+	content: "\00BB \0020";
+}
+
+
 ul#options_menu:before {
 	font-size: 1.2em;
 	line-height: 250%;
@@ -1043,4 +1283,22 @@ ul#options_menu li {
 
 ul#options_menu li:before {
 	content: "\00BB \0020";
+}
+
+ul.menu form#form_logout input[type=submit] {
+    background-color: transparent;
+    text-align: left;
+    border: none; 
+    padding: 0; 
+    margin: 0; 
+    font-family: inherit;
+    font-size: inherit;
+    color: #993357;
+    text-decoration: none;
+    cursor: pointer;
+    color: #06c;
+}
+
+ul.menu form#form_logout input[type=submit]:hover {
+	color: #147;
 }

@@ -27,54 +27,26 @@
  *
  * @copyright Copyright 2002-2003, Hendrik Mans <hendrik@mans.de>
  * @copyright Copyright 2004-2005, Jason Tourtelotte <wikka-admin@jsnx.com>
- * @copyright Copyright 2006-2009, {@link http://wikkawiki.org/CreditsPage Wikka Development Team}
+ * @copyright Copyright 2006-2010, {@link http://wikkawiki.org/CreditsPage Wikka Development Team}
  *
  * @todo use templating class for page generation;
  * @todo add phpdoc documentation for configuration array elements;
  */
 
-//error_reporting(E_ALL);
-error_reporting (E_ALL ^ E_NOTICE);
+// ---------------------- DEBUGGING AND ERROR REPORTING -----------------------
+if(version_compare(phpversion(),'5.3','<'))
+	error_reporting(E_ALL);
+else
+	error_reporting(E_ALL & !E_DEPRECATED);
+// ---------------------- END DEBUGGING AND ERROR REPORTING -------------------
 
-// If you need to use this installation with a configuration file outside the
-// installation directory uncomment the following line and adapt it to reflect
-// the (filesystem) path to where your configuration file is located.
-// This would make it possible to store the configuration file outside of the
-// webroot, or to share one configuration file between several Wikka Wiki
-// installations.
-// This replaces the use of the environment variable WAKKA_CONFIG for security
-// reasons. [SEC]
-#if (!defined('WAKKA_CONFIG')) define('WAKKA_CONFIG','path/to/your/wikka.config.php');
-
+// ---------------------------- VERSIONING ------------------------------------
 /**#@+
- * Internationalization constant.
+ * Defines current Wikka version.
  */
-if (!defined('ERROR_WAKKA_LIBRARY_MISSING')) define('ERROR_WAKKA_LIBRARY_MISSING','The necessary file "libs/Wakka.class.php" could not be found. To run Wikka, please make sure the file exists and is placed in the right directory!');
-define('ERROR_WRONG_PHP_VERSION', 'Wikka requires PHP %s or higher!');	// %s - version number
-define('MINIMUM_PHP_VERSION', '4.1');
-if (!defined('ERROR_MYSQL_SUPPORT_MISSING')) define('ERROR_MYSQL_SUPPORT_MISSING', 'PHP can\'t find MySQL support but Wikka requires MySQL. Please check the output of <tt>phpinfo()</tt> in a php document for MySQL support: it needs to be compiled into PHP, the module itself needs to be present in the expected location, <strong>and</strong> php.ini needs to have it enabled.<br />Also note that you cannot have <tt>mysqli</tt> and <tt>mysql</tt> support both enabled at the same time.<br />Please double-check all of these things, restart your webserver after any fixes, and then try again!');
-if (!defined('ERROR_SETUP_FILE_MISSING')) define('ERROR_SETUP_FILE_MISSING', 'A file of the installer/ upgrader was not found. Please install Wikka again!');
-if (!defined('ERROR_SETUP_HEADER_MISSING')) define('ERROR_SETUP_HEADER_MISSING', 'The file "setup/header.php" was not found. Please install Wikka again!');
-if (!defined('ERROR_SETUP_FOOTER_MISSING')) define('ERROR_SETUP_FOOTER_MISSING', 'The file "setup/footer.php" was not found. Please install Wikka again!');
-if (!defined('ERROR_HEADER_MISSING')) define('ERROR_HEADER_MISSING', 'A header template could not be found. Please make sure that a file called <code>header.php</code> exists in the templates directory.'); //TODO Make sure this message matches any filename/folder change 
-if (!defined('ERROR_FOOTER_MISSING')) define('ERROR_FOOTER_MISSING', 'A footer template could not be found. Please make sure that a file called <code>footer.php</code> exists in the templates directory.'); //TODO Make sure this message matches any filename/folder change 
-if (!defined('ERROR_NO_DB_ACCESS')) define('ERROR_NO_DB_ACCESS', 'The wiki is currently unavailable. <br /><br />Error: Unable to connect to the MySQL database.');
-if (!defined('PAGE_GENERATION_TIME')) define('PAGE_GENERATION_TIME', 'Page was generated in %.4f seconds'); // %.4f - generation time in seconds with 4 digits after the dot
-if (!defined('WIKI_UPGRADE_NOTICE')) define('WIKI_UPGRADE_NOTICE', 'This site is currently being upgraded. Please try again later.');
-/**#@-*/
-/**
- * Defines the current Wikka version. Do not change the version number or you will have problems upgrading.
- */
-if (!defined('WAKKA_VERSION')) define('WAKKA_VERSION', '1.2');
+include_once('version.php');
 
-/**#@-*/
-/**
- * Defines the current Wikka patch level. This should be 0 by default, 
- * and does not need to be changed for major/minor releases.
- */
-if(!defined('WIKKA_PATCH_LEVEL')) define('WIKKA_PATCH_LEVEL', '1');
-
-
+// ----------------------------- BASIC CONSTANTS -------------------------------
 /**#@+
  * Simple constant. May be made a configurable value.
  */
@@ -91,8 +63,22 @@ define('ID_LENGTH',10);			// @@@ maybe make length configurable
  */
 if(!defined('PATH_DIVIDER')) define('PATH_DIVIDER', ',');
 /**#@-*/
+/**#@+
+ * Minimum version requirement.
+ */
+if (!defined('MINIMUM_PHP_VERSION'))	define('MINIMUM_PHP_VERSION', '5.0');
+if (!defined('MINIMUM_MYSQL_VERSION'))	define('MINIMUM_MYSQL_VERSION', '4.1');
+/**#@-*/
+// ----------------------------- END BASIC CONSTANTS ---------------------------
 
-// Sanity checks - we die if these conditions aren't met
+// ------------ CRITICAL ERROR MESSAGES USED BEFORE LANG FILE LOADED -----------
+// Do not move these declaration to lang files.
+if(!defined('ERROR_WRONG_PHP_VERSION')) define('ERROR_WRONG_PHP_VERSION', 'Wikka requires PHP %s or higher!');  // %s - version number
+if(!defined('ERROR_MYSQL_SUPPORT_MISSING')) define('ERROR_MYSQL_SUPPORT_MISSING', 'PHP can\'t find MySQL support but Wikka requires MySQL. Please check the output of <tt>phpinfo()</tt> in a php document for MySQL support: it needs to be compiled into PHP, the module itself needs to be present in the expected location, <strong>and</strong> php.ini needs to have it enabled.<br />Also note that you cannot have <tt>mysqli</tt> and <tt>mysql</tt> support both enabled at the same time.<br />Please double-check all of these things, restart your webserver after any fixes, and then try again!');
+if(!defined('ERROR_WAKKA_LIBRARY_MISSING')) define('ERROR_WAKKA_LIBRARY_MISSING','The necessary file "libs/Wakka.class.php" could not be found. To run Wikka, please make sure the file exists and is placed in the right directory!');
+// --------END: CRITICAL ERROR MESSAGES USED BEFORE LANG FILE LOADED -----------
+
+// ----------------------------- SANITY CHECKS ---------------------------------
 
 // More intelligent version check, more intelligently placed ;)
 if (!function_exists('version_compare') ||
@@ -198,12 +184,12 @@ else
 	die(ERROR_WAKKA_LIBRARY_MISSING);
 }
 
-// Sanity checks OK - start rolling....
+// ----------------------------- END SANITY CHECKS ----------------------------
 
 ob_start();
 global $tstart;
 $tstart = getmicrotime();
-set_magic_quotes_runtime(0);
+ini_set('magic_quotes_runtime', 0);
 if (get_magic_quotes_gpc())
 {
 	magicQuotesWorkaround($_POST);
@@ -226,7 +212,7 @@ $t_request	= $_SERVER['REQUEST_URI'];
 // append slash if $t_request does not end with either a slash or the string .php
 if (!preg_match('@(\\.php|/)$@i', $t_request))
 {
-	$t_request .= '/';
+//	$t_request .= '/';
 }
 
 if (preg_match('@\.php$@', $t_request) && !preg_match('@wikka\.php$@', $t_request))
@@ -252,6 +238,64 @@ else
 	$t_rewrite_mode = 0;
 }
 
+// ---------------------- DEFINE URL DOMAIN / PATH -----------------------------
+/**#@+*
+ * URL or URL component, derived just once for later usage.
+ */
+// first derive domain, path and base_url, as well as cookie path just once
+// so they are ready for later use.
+// detect actual scheme (might be https!)	@@@ TEST
+// please recopy modif into setup/test/test-mod-rewrite.php
+$scheme = ((isset($_SERVER['HTTPS'])) && !empty($_SERVER['HTTPS']) && 'off' != $_SERVER['HTTPS']) ? 'https://' : 'http://';
+$server_port = ':'.$_SERVER['SERVER_PORT'];
+if ((('http://' == $scheme) && (':80' == $server_port)) || (('https://' == $scheme) && (':443' == $server_port)))
+{
+	$server_port = '';
+}
+/**
+ * URL fragment consisting of scheme + domain part.
+ * Represents the domain URL where the current instance of Wikka is located.
+ * This variable can be overriden in {@link override.config.php}
+ *
+ * @var string
+ */
+if (!defined('WIKKA_BASE_DOMAIN_URL')) define('WIKKA_BASE_DOMAIN_URL', $scheme.$_SERVER['SERVER_NAME'].$server_port);
+/**
+ * URL fragment consisting of a path component.
+ * Points to the instance of Wikka within {@link WIKKA_BASE_DOMAIN_URL}.
+ *
+ * @var string
+ */
+define('WIKKA_BASE_URL_PATH', preg_replace('/wikka\\.php/', '', $_SERVER['SCRIPT_NAME']));
+/**
+ * Base URL consisting of {@link WIKKA_BASE_DOMAIN_URL} and {@link WIKKA_BASE_URL_PATH} concatenated.
+ * Ready to append a relative path to a "static" file to.
+ *
+ * @var string
+ */
+define('WIKKA_BASE_URL', WIKKA_BASE_DOMAIN_URL.WIKKA_BASE_URL_PATH);
+/**
+ * Path to be used for cookies.
+ * Derived from {@link WIKKA_BASE_URL_PATH}
+ *
+ * @var string
+ */
+define('WIKKA_COOKIE_PATH', ('/' == WIKKA_BASE_URL_PATH) ? '/' : substr(WIKKA_BASE_URL_PATH, 0, -1));
+/**
+ * Default number of hours after which a permanent cookie is to expire: corresponds to 90 days.
+ */
+if (!defined('DEFAULT_COOKIE_EXPIRATION_HOURS')) define('DEFAULT_COOKIE_EXPIRATION_HOURS',90 * 24);
+/**
+ * Path for Wikka libs
+ *
+ * @var string
+ */
+if(!defined('WIKKA_LIBRARY_PATH')) define('WIKKA_LIBRARY_PATH', 'lib');
+
+/**#@-*/
+// ----------------------- END URL DOMAIN / PATH -------------------------------
+
+
 $wakkaDefaultConfig = array(
 	'mysql_host'				=> 'localhost',
 	'mysql_database'			=> 'wikka',
@@ -263,11 +307,13 @@ $wakkaDefaultConfig = array(
 	'base_url'					=> $t_scheme.$t_domain.$t_port.$t_request.$t_query,
 	'rewrite_mode'				=> $t_rewrite_mode,
 	'wiki_suffix'				=> '@wikka',
-	'enable_user_host_lookup'	=> '1',	#enable (1, default) or disable (0) lookup of user hostname from IP address
+	'enable_user_host_lookup'	=> '0',	#enable (1) or disable (0, default) lookup of user hostname from IP address
 
 	'action_path'				=> 'plugins/actions'.PATH_DIVIDER.'actions',
 	'handler_path'				=> 'plugins/handlers'.PATH_DIVIDER.'handlers',
+	'lang_path'					=> 'plugins/lang',
 	'gui_editor'				=> '1',
+	'default_comment_display'	=> 'threaded',
 	'theme'						=> 'light',
 
 	// formatter and code highlighting paths
@@ -278,6 +324,8 @@ $wakkaDefaultConfig = array(
 
 	// template
 	'wikka_template_path' 		=> 'plugins/templates'.PATH_DIVIDER.'templates',		# (location of Wikka template files - REQUIRED)
+	'feedcreator_path'			=> '3rdparty/core/feedcreator',
+   	'menu_config_path'			=> 'config', #858
 	'safehtml_path'				=> '3rdparty/core/safehtml',
 	'referrers_purge_time'		=> '30',
 	'pages_purge_time'			=> '0',
@@ -287,7 +335,6 @@ $wakkaDefaultConfig = array(
 	'anony_delete_own_comments'	=> '1',
 	'public_sysinfo'			=> '0',		# enable or disable public display of system information in SysInfo
 	'double_doublequote_html'	=> 'safe',
-	'external_link_tail' 		=> '<span class="exttail">&#8734;</span>',
 	'sql_debugging'				=> '0',
 	'admin_users' 				=> '',
 	'admin_email' 				=> '',
@@ -304,10 +351,12 @@ $wakkaDefaultConfig = array(
 
 	'default_write_acl'			=> '+',
 	'default_read_acl'			=> '*',
-	'default_comment_acl'		=> '*',
+	'default_comment_read_acl'		=> '*',
+	'default_comment_post_acl'		=> '+',
 	'allow_user_registration'	=> '1',
 	'enable_version_check'      => '1',
-	'version_check_interval'	=> '1h'
+	'version_check_interval'	=> '1h',
+	'default_lang' => 'en'
 	);
 
 // load config
@@ -344,15 +393,153 @@ if(isset($wakkaConfig['stylesheet']))
 
 // Add plugin paths if they do not already exist
 if(isset($wakkaConfig['action_path']) && preg_match('/plugins\/actions/', $wakkaConfig['action_path']) <= 0)
-	$wakkaConfig['action_path'] = "plugins/actions," .  $wakkaConfig['action_path'];	
+	$wakkaConfig['action_path'] = "plugins/actions," .  $wakkaConfig['action_path'];
 if(isset($wakkaConfig['handler_path']) && preg_match('/plugins\/handlers/', $wakkaConfig['handler_path']) <= 0)
-	$wakkaConfig['handler_path'] = "plugins/handlers," .  $wakkaConfig['handler_path'];	
+	$wakkaConfig['handler_path'] = "plugins/handlers," .  $wakkaConfig['handler_path'];
 if(isset($wakkaConfig['wikka_template_path']) && preg_match('/plugins\/templates/', $wakkaConfig['wikka_template_path']) <= 0)
-	$wakkaConfig['wikka_template_path'] = "plugins/templates," .  $wakkaConfig['wikka_template_path'];	
+	$wakkaConfig['wikka_template_path'] = "plugins/templates," .  $wakkaConfig['wikka_template_path'];
 if(isset($wakkaConfig['wikka_formatter_path']) && preg_match('/plugins\/formatters/', $wakkaConfig['wikka_formatter_path']) <= 0)
-	$wakkaConfig['wikka_formatter_path'] = "plugins/formatters," .  $wakkaConfig['wikka_formatter_path'];	
+	$wakkaConfig['wikka_formatter_path'] = "plugins/formatters," .  $wakkaConfig['wikka_formatter_path'];
+if(isset($wakkaConfig['lang_path']) && preg_match('/plugins\/lang/', $wakkaConfig['lang_path']) <= 0)
+	$wakkaConfig['lang_path'] = "plugins/lang," .  $wakkaConfig['lang_path'];
 
 $wakkaConfig = array_merge($wakkaDefaultConfig, $wakkaConfig);	// merge defaults with config from file
+
+// ---------------------------- LANGUAGE DEFAULTS -----------------------------
+/**
+ * Include language file(s) if it/they exist(s).
+ * @see /lang/en.inc.php
+ *
+ * Note that all lang_path entries in wikka.config.php are scanned for
+ * default_lang files in the order specified in lang_path, with the
+ * fallback language pack scanned last to pick up any undefined
+ * strings.
+ *
+ * TODO: Handlers and actions that use their own language packs are
+ * responsible for loading their own translation strings.  This
+ * process should be unified across the application.
+ *
+ */
+$default_lang = $wakkaConfig['default_lang'];
+$fallback_lang = 'en';
+$default_lang_path = 'lang'.DIRECTORY_SEPARATOR.$default_lang;
+$plugin_lang_path = $wakkaConfig['lang_path'].DIRECTORY_SEPARATOR.$default_lang;
+$fallback_lang_path = 'lang'.DIRECTORY_SEPARATOR.$fallback_lang;
+$default_lang_strings = $default_lang_path.DIRECTORY_SEPARATOR.$default_lang.'.inc.php';
+$plugin_lang_strings = $plugin_lang_path.DIRECTORY_SEPARATOR.$default_lang.'.inc.php';
+$fallback_lang_strings = $fallback_lang_path.DIRECTORY_SEPARATOR.$fallback_lang.'.inc.php';
+$lang_packs_found = false;
+if (file_exists($plugin_lang_strings))
+{
+	require_once($plugin_lang_strings);
+	$lang_packs_found = true;
+}
+if (file_exists($default_lang_strings))
+{
+	require_once($default_lang_strings);
+	$lang_packs_found = true;
+}
+if (file_exists($fallback_lang_strings))
+{
+	require_once($fallback_lang_strings);
+	$lang_packs_found = true;
+}
+if(!$lang_packs_found)
+{
+	die('Language file '.$default_lang_strings.' not found! In addition, the default language file '.$fallback_lang_strings.' is missing. Please add the file(s).');
+}
+
+if(!defined('WIKKA_LANG_PATH')) define('WIKKA_LANG_PATH', $default_lang_path);
+// ------------------------- END LANGUAGE DEFAULTS -----------------------------
+
+/**
+ * To activate multisite deployment capabilities, just create an empty file multi.config.php in
+ * your Wikkawiki installation directory. This file can contain an array definition for
+ * $multiConfig.
+ * Relevant keys in the array are a global directory for local settings 'local_config' and
+ * designated directories for different host requests, e.g. you may want http://example.com
+ * and http://www.example.com using the same local config file.
+ * 'http_www_example_com' => 'http.example.com'
+ * 'http_example_com' => 'http.example.com'
+*/
+$multisite_configfile = 'multi.config.php';
+if (file_exists($multisite_configfile))
+{
+	$wakkaGlobalConfig = $wakkaConfig;	// copy config file, #878
+	$multiDefaultConfig = array(
+		'local_config'            => 'wikka.config' # path to local configs
+	);
+	$multiConfig = array();
+
+    include($multisite_configfile);
+
+    $multiConfig = array_merge($multiDefaultConfig, $multiConfig);    // merge default multi config with config from file
+
+    $configkey = str_replace('://','_',$t_scheme).str_replace('.','_',$t_domain);
+    if($t_port != '') $configkey .= '_'.$t_port;
+
+
+/**
+ * Admin can decide to put a specific local config in a more readable and shorter directory.
+ * The $configkey is created as 'protocol_thirdleveldomain_secondleveldomain_topleveldomain'
+ * Subdirectories are not supported at the moment, but should be easy to implement.
+ * If no designated directory is found in multi.config.php, the script uses the $configkey
+ * value and replaces all underscore by dots:
+ * protocol.thirdleveldomain.secondleveldomain.topleveldomain e.g.
+ * http.www.example.com
+*/
+    if (isset($multiConfig[$configkey])) $configpath = $multiConfig[$configkey];
+    else
+    {
+        $requested_host = str_replace('_','.',$configkey);
+        $configpath = $multiConfig['local_config'].DIRECTORY_SEPARATOR.$requested_host;
+        $multiConfig[$configkey] = $requested_host;
+    }
+
+    $local_configfile = $configpath.DIRECTORY_SEPARATOR.'local.config.php';
+/**
+ * As each site may differ in its configuration and capabilities, we should consider using
+ * plugin directories below the $configpath. Effectively, this replaces the 1.1.6.6 plugins
+ * folder. It goes even a little bit further by providing a site specific upload directory.
+*/
+
+    $localDefaultConfig = array(
+    	'menu_config_path'			=> $configpath.DIRECTORY_SEPARATOR.'config'.PATH_DIVIDER.'config',
+        'action_path'				=> $configpath.DIRECTORY_SEPARATOR.'actions'.PATH_DIVIDER.'plugins'.DIRECTORY_SEPARATOR.'actions'.PATH_DIVIDER.'actions',
+        'handler_path'				=> $configpath.DIRECTORY_SEPARATOR.'handlers'.PATH_DIVIDER.'plugins'.DIRECTORY_SEPARATOR.'handlers'.PATH_DIVIDER.'handlers',
+        'wikka_formatter_path'		=> $configpath.DIRECTORY_SEPARATOR.'formatters'.PATH_DIVIDER.'plugins'.DIRECTORY_SEPARATOR.'formatters'.PATH_DIVIDER.'formatters',        # (location of Wikka formatter - REQUIRED)
+        'wikka_highlighters_path'	=> $configpath.DIRECTORY_SEPARATOR.'formatters'.PATH_DIVIDER.'plugins'.DIRECTORY_SEPARATOR.'formatters'.PATH_DIVIDER.'formatters',        # (location of Wikka code highlighters - REQUIRED)
+        'wikka_template_path'		=> $configpath.DIRECTORY_SEPARATOR.'templates'.PATH_DIVIDER.'plugins'.DIRECTORY_SEPARATOR.'templates'.PATH_DIVIDER.'templates',        # (location of Wikka template files - REQUIRED)
+        'upload_path'				=> $configpath.DIRECTORY_SEPARATOR.'uploads'
+    );
+    $localConfig = array();
+    if (!file_exists($configpath))
+    {
+        $path_parts = explode(DIRECTORY_SEPARATOR,$configpath);
+        $partialpath = '';
+        foreach($path_parts as $part)
+        {
+            $partialpath .= $part;
+            if (!file_exists($partialpath)) mkdir($partialpath,0755);
+            $partialpath .= DIRECTORY_SEPARATOR;
+        }
+        mkdir($configpath.DIRECTORY_SEPARATOR.'config',0700);
+        mkdir($configpath.DIRECTORY_SEPARATOR.'actions',0700);
+        mkdir($configpath.DIRECTORY_SEPARATOR.'handlers',0700);
+        mkdir($configpath.DIRECTORY_SEPARATOR.'handlers'.DIRECTORY_SEPARATOR.'page',0700);
+        mkdir($configpath.DIRECTORY_SEPARATOR.'formatters',0700);
+        mkdir($configpath.DIRECTORY_SEPARATOR.'templates',0700);
+        mkdir($configpath.DIRECTORY_SEPARATOR.'uploads',0755);
+//        if(file_exists($wakkaConfig['stylesheet'])) copy($wakkaConfig['stylesheet'],$localDefaultConfig['stylesheet']);
+    }
+    else if (file_exists($local_configfile)) include($local_configfile);
+
+    $wakkaGlobalConfig = array_merge($wakkaGlobalConfig, $localDefaultConfig);    // merge global config with default local config
+
+    $wakkaConfigLocation = $local_configfile;
+
+    $wakkaConfig = array_merge($wakkaGlobalConfig, $wakkaConfig);    // merge localized global config with local config from file
+}
 
 /**
  * Check for locking.
@@ -364,12 +551,13 @@ if (file_exists('locked'))
 	$lockpw = trim($lines[0]);
 
 	// is authentification given?
+	$ask = false;
 	if (isset($_SERVER["PHP_AUTH_USER"])) {
 		if (!(($_SERVER["PHP_AUTH_USER"] == "admin") && ($_SERVER["PHP_AUTH_PW"] == $lockpw))) {
-			$ask = 1;
+			$ask = true;
 		}
 	} else {
-		$ask = 1;
+		$ask = true;
 	}
 
 	if ($ask) {
@@ -427,12 +615,12 @@ $wakka = $_GET['wakka']; #312
 $wakka = preg_replace("/^\//", "", $wakka);
 
 /**
- * Split into page/method.
+ * Extract pagename and handler from URL
  *
- * Note this splits at the FIRST / so $method may contain one or more slashes;
- * this is not allowed, and ultimately handled in the Method() method. [SEC]
+ * Note this splits at the FIRST / so $handler may contain one or more slashes;
+ * this is not allowed, and ultimately handled in the Handler() method. [SEC]
  */
-if (preg_match("#^(.+?)/(.*)$#", $wakka, $matches)) list(, $page, $method) = $matches;
+if (preg_match("#^(.+?)/(.*)$#", $wakka, $matches)) list(, $page, $handler) = $matches;
 else if (preg_match("#^(.*)$#", $wakka, $matches)) list(, $page) = $matches;
 //Fix lowercase mod_rewrite bug: URL rewriting makes pagename lowercase. #135
 if ((strtolower($page) == $page) && (isset($_SERVER['REQUEST_URI']))) #38
@@ -443,6 +631,7 @@ if ((strtolower($page) == $page) && (isset($_SERVER['REQUEST_URI']))) #38
 		$page = $match_url[1];
 	}
 }
+//$page = preg_replace('/_/', ' ', $page);
 
 /**
  * Create Wakka object
@@ -465,7 +654,7 @@ $user = $wakka->GetUser();
 // Only store sessions for real users!
 if(NULL != $user)
 {
-	$res = $wakka->LoadSingle("SELECT * FROM ".$wakka->config['table_prefix']."sessions WHERE sessionid='".session_id()."' AND userid='".$user['name']."'"); 
+	$res = $wakka->LoadSingle("SELECT * FROM ".$wakka->config['table_prefix']."sessions WHERE sessionid='".session_id()."' AND userid='".$user['name']."'");
 	if(isset($res))
 	{
 		// Just update the session_start time
@@ -481,8 +670,8 @@ if(NULL != $user)
 /**
  * Run the engine.
  */
-if (!isset($method)) $method='';
-$wakka->Run($page, $method);
+if (!isset($handler)) $handler='';
+$wakka->Run($page, $handler);
 $content =  ob_get_contents();
 /**
  * Use gzip compression if possible.
