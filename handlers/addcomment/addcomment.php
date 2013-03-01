@@ -12,23 +12,55 @@ if (($this->HasAccess('comment') || $this->IsAdmin()) && $this->existsPage($this
 {
 	$body = trim($this->GetSafeVar('body', 'post'));
 
+	// initializations
+	$redirectmessage = '';
+	$failed = FALSE;
+	$reason = '';
+	# matches is a required parameter but we're interesting in the count only
+	$urlcount = preg_match_all('/\b[a-z]+:\/\/\S+/',$body,$dummy);
+	# prevent problems when counting fails
+	if (FALSE === $urlcount) $urlcount = 0;
+	$maxurls  = $this->config['max_new_comment_urls'];
+	$logging  = ($this->config['spam_logging'] == '1');
+
 	if ('' == $body) #check if comment is non-empty
 	{
 		$redirectmessage = ERROR_EMPTY_COMMENT;
 	}
-	elseif (FALSE === ($aKey = $this->getSessionKey($this->GetSafeVar('form_id', 'post'))))	# check if page key was stored in session
+
+	else if ($urlcount > $maxurls)
 	{
-		$redirectmessage = ERROR_COMMENT_NO_KEY;
+		$redirectmessage = 'Too many URLs -- comment not saved!';
+		if ($logging)
+		{
+			$failed = TRUE;
+			$reason = 'urls > '.$maxurls;
+		}
 	}
-	elseif (TRUE !== ($rc = $this->hasValidSessionKey($aKey)))	# check if correct name,key pair was passed
+
+	# Apply content filter if configured
+	else if ($this->config['content_filtering'] == "1" && $this->hasBadWords($body))
 	{
-		$redirectmessage = ERROR_COMMENT_INVALID_KEY;
+		$redirectmessage = 'Content not acceptable - please reformulate your comment!';
+		if ($logging)
+		{
+			$failed = TRUE;
+			$reason = 'filter';
+		}
 	}
+
 	// all is kosher: store new comment
 	else
 	{
 		$body = nl2br($this->htmlspecialchars_ent($body));
 		$this->SaveComment($this->tag, $body);
+	}
+
+	// log failed attempt
+	if ($failed && $logging)
+	{
+		// log failed attempt
+		$this->logSpamComment($this->tag,$body,$reason,$urlcount);
 	}
 	
 	// redirect to parent page

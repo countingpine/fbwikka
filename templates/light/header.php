@@ -2,12 +2,12 @@
 //init
 $message = $this->GetRedirectMessage();
 $user = $this->GetUser();
-$site_base = $this->GetConfigValue("base_url");
+$site_base = WIKKA_BASE_URL; 
 //UniversalEditButton (http://universaleditbutton.org/Universal_Edit_Button) #779
 $ueb = '';
 if ($this->GetHandler() != 'edit' && $this->HasAccess("write", $this->page["tag"]))
 {
-	$ueb .= '	<link rel="alternate" type="application/x-wiki" title="'.sprintf(WIKKA_PAGE_EDIT_LINK_TITLE, $this->page['tag']).'" href="'.$this->Href('edit', $this->page["tag"]).'"/>'."\n";
+	$ueb .= '	<link rel="alternate" type="application/x-wiki" title="'.sprintf(T_("Click to edit %s"), $this->page['tag']).'" href="'.$this->Href('edit', $this->page["tag"]).'"/>'."\n";
 }
 if ( substr_count($site_base, 'wikka.php?wakka=') > 0 ) $site_base = substr($site_base,0,-16);
 ?>
@@ -18,7 +18,7 @@ if ( substr_count($site_base, 'wikka.php?wakka=') > 0 ) $site_base = substr($sit
 	<base href="<?php echo $site_base ?>" />
 <?php if ($this->GetHandler() != 'show' || $this->page["latest"] == 'N' || $this->page["tag"] == 'SandBox') echo "<meta name=\"robots\" content=\"noindex, nofollow, noarchive\" />\n"; ?>
 	<meta name="generator" content="WikkaWiki" />
-	<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 	<meta name="keywords" content="<?php echo $this->htmlspecialchars_ent($this->GetConfigValue("meta_keywords")) ?>" />
 	<meta name="description" content="<?php echo $this->htmlspecialchars_ent($this->GetConfigValue("meta_description")) ?>" />
 	<link rel="stylesheet" type="text/css" href="<?php echo $this->GetThemePath('/') ?>/css/light.css?<?php echo $this->htmlspecialchars_ent($this->GetConfigValue('stylesheet_hash')) ?>" />

@@ -36,11 +36,14 @@ if ($cattag = $_GET['wakka'])	#312 (only files action uses POST for wakka)
 
 	if ($this->CheckMySQLVersion(4,0,1))
 	{
-    		$results = $this->FullCategoryTextSearch($page); 
+    	$results = $this->FullCategoryTextSearch($page); 
 	}
 	else
 	{
-    		$results = $this->FullTextSearch($page); 
+		$utf8Compatible = 0;
+		if(1 == $this->config['utf8_compat_search'])
+			$utf8Compatible = 1;
+    	$results = $this->FullTextSearch($page, 0, $utf8Compatible); 
 	}
 
 	if ($results)
@@ -62,10 +65,10 @@ if ($cattag = $_GET['wakka'])	#312 (only files action uses POST for wakka)
 			$count++;
 			$pagecount++;
 		}
-		$str = sprintf(PAGES_IN_CATEGORY,$pagecount,$page).$str;
+		$str = sprintf(T_("The following %d page(s)"),$pagecount).$str;
 		if (!$compact)  $str .= '</tr></table>'; else $str .= '</ul></div>';
 	}
-	else $str .= sprintf(ERROR_NO_PAGES,$page);
+	else $str .= sprintf(T_("Sorry, No items found for %s"),$page);
 	print($str);
 }
 ?>

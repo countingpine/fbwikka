@@ -14,7 +14,6 @@
  * @access	public
  * @since	1.1.7
  * @uses	FeedCreator
- * @uses	Config::$base_url
  * @uses	Config::$wakka_name
  * @uses	Config::$root_page
  * @uses	Config::$xml_recent_changes
@@ -90,8 +89,8 @@ include_once('3rdparty'.DIRECTORY_SEPARATOR.'core'.DIRECTORY_SEPARATOR.'feedcrea
 //initialize feed (general settings)
 $rss = new UniversalFeedCreator(); 
 $rss->useCached(); //TODO: make this configurable
-$rss->title = sprintf(RECENTCHANGES_FEED_TITLE, $this->GetConfigValue('wakka_name'));
-$rss->description = sprintf(RECENTCHANGES_FEED_DESCRIPTION, $this->GetConfigValue('wakka_name'));
+$rss->title = sprintf(T_("%s - recently changed pages"), $this->GetConfigValue('wakka_name'));
+$rss->description = sprintf(T_("New and recently changed pages from %s"), $this->GetConfigValue('wakka_name'));
 $rss->cssStyleSheet = $this->StaticHref('css/'.FEED_CSS);
 $rss->descriptionTruncSize = FEED_DESCRIPTION_TRUNCATE_SIZE;
 $rss->descriptionHtmlSyndicated = FEED_DESCRIPTION_HTML;
@@ -100,10 +99,10 @@ $rss->syndicationURL = $this->Href($this->handler,'','f='.$f);
 
 //create feed image
 $image = new FeedImage();
-$image->title = RECENTCHANGES_FEED_IMAGE_TITLE;
+$image->title = T_("Wikka logo");
 $image->url = FEED_IMAGE_URL;
 $image->link = $this->Href('', $this->GetConfigValue('root_page'));
-$image->description = RECENTCHANGES_FEED_IMAGE_DESCRIPTION;
+$image->description = T_("Feed provided by Wikka");
 $image->descriptionTruncSize = FEED_DESCRIPTION_TRUNCATE_SIZE;
 $image->descriptionHtmlSyndicated = FEED_DESCRIPTION_HTML;
 $rss->image = $image;
@@ -125,8 +124,8 @@ if ($pages = $this->LoadRecentlyChanged())
 			//  it will be escaped twice and become &amp;amp;
 			// In the case of RecentChanges.xml, we must unescape the url before giving it to FC
 			$item->date = date('r',strtotime($page['time']));	// RFC2822
-			$item->description = sprintf(RECENTCHANGES_FEED_ITEM_DESCRIPTION, $page['user']).($page['note'] ? ' ('.$page['note'].')' : '')."\n";
-			$item->source = $this->GetConfigValue('base_url');
+			$item->description = sprintf(T_("By %s"), $page['user']).($page['note'] ? ' ('.$page['note'].')' : '')."\n";
+			$item->source = WIKKA_BASE_URL;
 			// @@@ JW: ^ should link to *actual* page not root
 /*
 http://dublincore.org/documents/1999/07/02/dces/

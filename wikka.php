@@ -304,7 +304,7 @@ $wakkaDefaultConfig = array(
 
 	'root_page'					=> 'HomePage',
 	'wakka_name'				=> 'MyWikkaSite',
-	'base_url'					=> $t_scheme.$t_domain.$t_port.$t_request.$t_query,
+//	'base_url'					=> $t_scheme.$t_domain.$t_port.$t_request.$t_query,
 	'rewrite_mode'				=> $t_rewrite_mode,
 	'wiki_suffix'				=> '@wikka',
 	'enable_user_host_lookup'	=> '0',	#enable (1) or disable (0, default) lookup of user hostname from IP address
@@ -356,7 +356,15 @@ $wakkaDefaultConfig = array(
 	'allow_user_registration'	=> '1',
 	'enable_version_check'      => '1',
 	'version_check_interval'	=> '1h',
-	'default_lang' => 'en'
+	'default_lang'				=> 'en',
+	'spamlog_path'				=> './spamlog.txt.php',
+	'badwords_path'				=> './badwords.txt.php',
+	'spam_logging'				=> '0',
+	'content_filtering'			=> '0',
+	'max_new_document_urls'		=> '15',
+	'max_new_comment_urls'		=> '6',
+	'max_new_feedback_urls'		=> '6',
+	'utf8_compat_search'		=> '0'
 	);
 
 // load config
@@ -406,6 +414,12 @@ if(isset($wakkaConfig['lang_path']) && preg_match('/plugins\/lang/', $wakkaConfi
 $wakkaConfig = array_merge($wakkaDefaultConfig, $wakkaConfig);	// merge defaults with config from file
 
 // ---------------------------- LANGUAGE DEFAULTS -----------------------------
+
+/**
+  * php-gettext
+  */
+  include_once('localization.php');
+
 /**
  * Include language file(s) if it/they exist(s).
  * @see /lang/en.inc.php
@@ -563,7 +577,7 @@ if (file_exists('locked'))
 	if ($ask) {
 		header("WWW-Authenticate: Basic realm=\"".$wakkaConfig["wakka_name"]." Install/Upgrade Interface\"");
 		header("HTTP/1.0 401 Unauthorized");
-		print WIKI_UPGRADE_NOTICE;
+		print T_("This site is currently being upgraded. Please try again later.");
 		exit;
 	}
 }
@@ -600,6 +614,10 @@ $wikka_cookie_path = ('/' == $base_url_path) ? '/' : substr($base_url_path,0,-1)
 session_set_cookie_params(0, $wikka_cookie_path);
 session_name(md5(BASIC_COOKIE_NAME.$wakkaConfig['wiki_suffix']));
 session_start();
+if(!isset($_SESSION['CSRFToken']))
+{
+	$_SESSION['CSRFToken'] = sha1(getmicrotime());
+}
 
 // fetch wakka location
 /**
@@ -643,7 +661,7 @@ $wakka = instantiate('Wakka',$wakkaConfig);
  */
 if (!$wakka->dblink)
 {
-	echo '<em class="error">'.ERROR_NO_DB_ACCESS.'</em>';
+	echo '<em class="error">'.T_("Error: Unable to connect to the database.").'</em>';
 	exit;
 }
 

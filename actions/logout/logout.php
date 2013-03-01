@@ -3,7 +3,7 @@
  * Display a login/logout button.
  *
  * @package Actions
- * @version		$Id: logout.php 1514 2009-10-25 22:45:41Z DarTar $
+ * @version		$Id: logout.php 1752 2010-12-30 08:30:22Z BrianKoontz $
  * @license 	http://www.gnu.org/copyleft/gpl.html GNU General Public License
  * @filesource
  *
@@ -19,13 +19,13 @@
 if ($this->GetUser())
 {
 	echo $this->FormOpen('', 'UserSettings', 'post', 'logout', 'logout');
-	echo '<input name="logout" type="submit" value="'.LOGOUT_BUTTON.'" />';
+	echo '<input name="logout" type="submit" value="'.T_("Logout").'" />';
 	echo $this->FormClose();
 }
 else
 {
 	echo $this->FormOpen('', 'UserSettings', 'login', 'login');
-	echo '<input name="login" type="submit" value="'.LOGIN_BUTTON.'" />';
+	echo '<input name="login" type="submit" value="'.T_("Login").'" />';
 	echo $this->FormClose();
 }
 ?>

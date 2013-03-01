@@ -38,6 +38,11 @@ if (!defined('MAX_HOSTNAME_LENGTH_DISPLAY')) define('MAX_HOSTNAME_LENGTH_DISPLAY
 if (!defined('ID_LENGTH')) define('ID_LENGTH',10);		// @@@ maybe make length configurable
 /**#@-*/
 
+/**
+ * Signature for a spamlog metadata line; MUST look different than Wikka markup!
+ */
+define('SPAMLOG_SIG','-@-');
+
 /**#@+
  * String constant defining a regular expresion pattern.
  */
@@ -61,6 +66,12 @@ if(!defined('NO_FILE_UPLOADED')) define ('NO_FILE_UPLOADED', "<em class='error'>
 if(!defined('ERROR_DURING_FILE_UPLOAD')) define ('ERROR_DURING_FILE_UPLOAD', "<em class='error'>There was an error uploading your file.  Please try again.</em>");
 if(!defined('ERROR_MAX_FILESIZE_EXCEEDED')) define('ERROR_MAX_FILESIZE_EXCEEDED', "<em class='error'>Attempted file upload was too big.  Maximum allowed size is %d MB.</em>"); 
 if(!defined('ERROR_FILE_EXISTS')) define('ERROR_FILE_EXISTS', "<em class='error'>There is already a file named <tt>%s</tt>. Please rename before uploading or delete the existing file first.</em>");
+
+/**#@+
+ * String constant defining a regularly used bit of constant text.
+ */
+if (!defined('WIKKA_URL_EXTENSION')) define('WIKKA_URL_EXTENSION', 'wikka.php?wakka=');
+/**#@-*/
 
 /**
  * The Wikka core class.
@@ -208,6 +219,19 @@ class Wakka
 	var $anon_users = array();
 	/**#@-*/
 
+	/**#@+*
+	 * URL or URL component, derived just once in {@link Wakka::Run()} for later usage.
+	 */
+	/**
+	 * Complete Wikka URL ready to append a page name to.
+	 * Derived from {@link WIKKA_BASE_URL} and (if rewrite mode is NOT on)
+	 * {@link WIKKA_URL_EXTENSION} concatenated.
+	 *
+	 * @var string
+	 */
+	var $wikka_url = '';
+	/**#@-*/
+
 	/**
 	 * Constructor.
 	 * Database connection is established when the main class Wakka is constructed.
@@ -222,6 +246,7 @@ class Wakka
 		$this->config = $config;
 
 		$this->dblink = @mysql_connect($this->GetConfigValue('mysql_host'), $this->GetConfigValue('mysql_user'), $this->GetConfigValue('mysql_password'));
+		mysql_query("SET NAMES 'utf8'", $this->dblink);
 		if ($this->dblink)
 		{
 			if (!@mysql_select_db($this->GetConfigValue('mysql_database'), $this->dblink))
@@ -339,15 +364,21 @@ class Wakka
 	 *							prefix will be automatically added
 	 * @param	string	$where	optional: criteria to be specified for a WHERE clause;
 	 *							do not include WHERE
+	 * @param   boolean $usePrefix optional: if true, append prefix defined in wikka.config.php file; if false, do not append prefix
 	 * @return	integer	number of matches returned by MySQL
 	 */
-	function getCount($table, $where='')							# JW 2005-07-16
+	function getCount($table, $where='', $usePrefix=TRUE)							# JW 2005-07-16
 	{
 		// build query
+		$prefix = '';
+		if(TRUE===$usePrefix)
+		{
+			$prefix = $this->GetConfigValue('table_prefix');
+		}
 		$where = ('' != $where) ? ' WHERE '.$where : '';
 		$query = "
 			SELECT COUNT(*)
-			FROM ".$this->GetConfigValue('table_prefix').$table.
+			FROM ".$prefix.$table.
 			$where;
 
 		// get and return the count as an integer
@@ -831,6 +862,9 @@ class Wakka
 	 * Get a value provided by user (by get, post or cookie) and sanitize it.
 	 * The method is also helpful to disable warning when the value was absent.
 	 *
+	 * Note that form token checks are enforced for all POST
+	 * operations to prevent CSRF attacks.
+	 *
 	 * @version	1.0
 	 *
 	 * @uses	Wakka::htmlspecialchars_ent()
@@ -841,14 +875,41 @@ class Wakka
 	 * @param	string	$varname required: field name on get or post or cookie name
 	 * @param	string	$gpc one of 'get', 'post', or 'cookie'. Optional,
 	 *			defaults to 'get'.
-	 * @return	string	sanitized value of $_GET[$varname] (or $_POST, $_COOKIE, depending on $gpc)
+	 * @param   string  $authenticate one of TRUE (use for sensitive
+				 POSTs or FALSE (do not check form token). Optional, defaults to
+				 TRUE (most secure option).
+	 * @return	string	sanitized value of $_GET[$varname] (or $_POST,
+	 *          $_COOKIE, depending on $gpc).  Redirects with error message upon
+	 *          authentication error.
 	 */
-	function GetSafeVar($varname, $gpc='get')
+	function GetSafeVar($varname, $gpc='get', $authenticate=TRUE)
 	{
 		$safe_var = NULL;
 		if ($gpc == 'post')
 		{
-			$safe_var = isset($_POST[$varname]) ? $_POST[$varname] : NULL;
+			// Is this a posted form?
+			if(NULL != $_POST)
+			{
+				if(TRUE == $authenticate)
+				{
+					if(!isset($_POST['CSRFToken']))
+					{
+						$this->SetRedirectMessage('Authentication failed: NoCSRFToken');
+						$this->Redirect();
+					}
+					$CSRFToken = $this->htmlspecialchars_ent($_POST['CSRFToken']);
+					if($CSRFToken != $_SESSION['CSRFToken'])
+					{
+						$this->SetRedirectMessage('Authentication failed: CSRFToken mismatch');
+						$this->Redirect();
+					}
+				}
+				$safe_var = isset($_POST[$varname]) ? $_POST[$varname] : NULL;
+			}
+			else
+			{
+				$safe_var = NULL;
+			}
 		}
 		elseif ($gpc == 'get')
 		{
@@ -948,6 +1009,26 @@ class Wakka
 		// comments added to make GeSHi-highlighted block visible in code JW/20070220
 		return '<!--start GeSHi-->'."\n".$geshi->parse_code()."\n".'<!--end GeSHi-->'."\n";
 	}
+
+	/**
+	 * Normalizes line endings to "*nix style" ("\n") in a string; handles both Dos/Win and Mac.
+	 *
+	 * @author		{@link http://wikka.jsnx.com/JavaWoman JavaWoman}
+	 * @copyright	Copyright © 2005, Marjolein Katsma
+	 * @license		http://www.gnu.org/copyleft/lesser.html GNU Lesser General Public License
+	 * @version		0.5
+	 *
+	 * @access		public
+	 *
+	 * @param		string	$content	required: string to be normalized
+	 * @return		string				content with normalized line endings
+	 */
+	function normalizeLines($content)
+	{
+		return str_replace("\r","\n",str_replace("\r\n","\n",$content));
+	}
+
+
 
 	/**#@-*/
 
@@ -1054,116 +1135,318 @@ class Wakka
 		return $this->PATCH_LEVEL;
 	}
 
-
 	/**
-	 * Create and store a secret key ("session key").
+	 * Log probably spammy comment.
 	 *
-	 * Creates a random value and a random field name to be used to pass on the value.
-	 * The key,value pair is stored in the session as a serialized array.
-	 *
-	 * @author		{@link http://wikkawiki.org/JavaWoman JavaWoman}
-	 * @copyright	Copyright (c) 2005, Marjolein Katsma
+	 * @author		{@link http://wikka.jsnx.com/JavaWoman JavaWoman}
+	 * @copyright	Copyright © 2005, Marjolein Katsma
 	 * @license		http://www.gnu.org/copyleft/lesser.html GNU Lesser General Public License
-	 * @version		0.5
+	 * @version		0.7
 	 *
 	 * @access		public
+	 * @todo		- prepare strings for internationalization
 	 *
-	 * @param		string	$keyname	required: name under which created secret key should be stored in the session
-	 * @return		array				fieldname and key value.
+	 * @uses		logSpam()
+	 *
+	 * @param		string	$tag		required: string page name
+	 * @param		string	$body		required: string containing comment body
+	 * @param		string	$reason		required: why attempt failed (urls|filter|nokey|badkey...)
+	 * @param		integer	$urlcount	optional: number of (new) URLs
+	 * @param		integer	$user		optional: original user/origin (rather than current user)
+	 * @param		integer	$time		optional: original time (rather than time of logging)
+	 * @return		mixed				bytes written if successful, FALSE otherwise.
 	 */
-	function createSessionKey($keyname)
+	function logSpamComment($tag,$body,$reason,$urlcount=0,$user='',$time='')
 	{
-		// create key and field name for it
-		$key = md5(getmicrotime());
-		$field = 'f'.substr(md5($key.getmicrotime()),0,10);
-		// store session key
-		$_SESSION[$keyname] = serialize(array($field,$key));
-		// return name, value pair
-		return array($field,$key);
+		$type		= 'comment ';
+		return $this->logSpam($type,$tag,$body,$reason,$urlcount,$user,$time);
 	}
 
 	/**
-	 * Retrieve a secret session key.
+	 * Log probably spammy document.
 	 *
-	 * Retrieves a named secret key and returns the result as an array with name,value pair.
-	 * Returns FALSE if the key is not found.
-	 *
-	 * @author		{@link http://wikkawiki.org/JavaWoman JavaWoman}
-	 * @copyright	Copyright (c) 2005, Marjolein Katsma
+	 * @author		{@link http://wikka.jsnx.com/JavaWoman JavaWoman}
+	 * @copyright	Copyright © 2005, Marjolein Katsma
 	 * @license		http://www.gnu.org/copyleft/lesser.html GNU Lesser General Public License
-	 * @version		0.5
+	 * @version		0.7
 	 *
 	 * @access		public
+	 * @todo		- prepare strings for internationalization
 	 *
-	 * @param		string	$keyname	required: name of secret key to retrieve from the session
-	 * @return		mixed				array with name,value pair on success, FALSE if entry not found.
+	 * @uses		logSpam()
+	 *
+	 * @param		string	$tag		required: string page name
+	 * @param		string	$body		required: string containing comment body
+	 * @param		string	$reason		required: why attempt failed (urls|filter|nokey|badkey)
+	 * @param		integer	$urlcount	optional: number of (new) URLs
+	 * @param		integer	$user		optional: original user/origin (rather than current user)
+	 * @param		integer	$time		optional: original time (rather than time of logging)
+	 * @return		mixed				bytes written if successful, FALSE otherwise.
 	 */
-	function getSessionKey($keyname)
+	function logSpamDocument($tag,$body,$reason,$urlcount=0,$user='',$time='')
 	{
-		if (!isset($_SESSION[$keyname]))
-		{
-			return FALSE;
-		}
-		else
-		{
-			$aKey = unserialize($_SESSION[$keyname]);		# retrieve secret key data
-			unset($_SESSION[$keyname]);						# clear secret key
-			return $aKey;
-		}
+		$type		= 'document';
+		return $this->logSpam($type,$tag,$body,$reason,$urlcount,$user,$time);
 	}
 
 	/**
-	 * Check if a user-provided key/value matches the one stored in the server-provided "session key".
+	 * Log probably spammy feedback.
 	 *
-	 * <p>Used to defend against FormSpoofing: each form gets a unique key+value which are stored
-	 * on the server(session) as well as send to the user (hidden form fields). If the user $_POSTs data,
-	 * there is a check if key+value are included and match those stored in the session. Otherwise the data is
-	 * discarded.</p>
-	 *
-	 * Make sure to check for identity TRUE (TRUE === returnval), do not evaluate return value
-	 * as boolean!
-	 *
-	 * @author		{@link http://wikkawiki.org/JavaWoman JavaWoman}
-	 * @copyright	Copyright (c) 2005, Marjolein Katsma
+	 * @author		{@link http://wikka.jsnx.com/JavaWoman JavaWoman}
+	 * @copyright	Copyright © 2005, Marjolein Katsma
 	 * @license		http://www.gnu.org/copyleft/lesser.html GNU Lesser General Public License
-	 * @version		0.5
+	 * @version		0.7
 	 *
 	 * @access		public
-	 * @param		array	$aKey	required: [0] fieldname, [1] key value.
-	 * @param		string	$method	optional: form method; default post;
-	 * @return		mixed	TRUE if correct name,value found; reason for failure otherwise.
-	 * @todo	replace $method by $useGet=FALSE (easier since we only have two methods)
-	 * @todo	do we need error messages here? If not, return FALSE instead (more logical).
-	 * @todo	prepare strings for internationalization
+	 * @todo		- prepare strings for internationalization
+	 *
+	 * @uses		logSpam()
+	 *
+	 * @param		string	$tag		required: string page name
+	 * @param		string	$body		required: string containing feedback text
+	 * @param		string	$reason		required: why attempt failed (urls|filter|nokey|badkey)
+	 * @param		integer	$urlcount	optional: number of (new) URLs
+	 * @return		mixed				bytes written if successful, FALSE otherwise.
 	 */
-	function hasValidSessionKey($aKey, $method='post')
+	function logSpamFeedback($tag,$body,$reason,$urlcount=0)
 	{
-		// get pair to look for
-		list($ses_field,$ses_key) = $aKey;
-		// check method and prepare what to look for
-		if (isset($method))
-		{
-			$aServervars = ($method == 'get') ? $_GET : $_POST;
-		}
-		else
-		{
-			$aServervars = $_POST;					# default
-		}
-
-		// check passed values
-		if (!isset($aServervars[$ses_field]))
-		{
-			return 'form no key';					# key not present
-		}
-		elseif ($aServervars[$ses_field] != $ses_key)
-		{
-			return 'form bad key';					# incorrect value passed
-		}
-		else
-		{
-			return TRUE;							# all is well
-		}
+		$type		= 'feedback';
+		return $this->logSpam($type,$tag,$body,$reason,$urlcount);
 	}
+
+	/**
+	 * Log probable spam (comment, document or feedback).
+	 *
+	 * @author		{@link http://wikka.jsnx.com/JavaWoman JavaWoman}
+	 * @copyright	Copyright © 2005, Marjolein Katsma
+	 * @license		http://www.gnu.org/copyleft/lesser.html GNU Lesser General Public License
+	 * @version		0.7
+	 *
+	 * @access		private
+	 * @todo		- make recognition of mass delete i18n-proof
+	 *				- use configured (later!) timezone
+	 *				- use configured (later!) date/time format
+	 *
+	 * @param		string	$type		required: string containing type (document|comment)
+	 * @param		string	$tag		required: string page name
+	 * @param		string	$body		required: string containing content (document or comment)
+	 * @param		string	$reason		required: why attempt failed (urls|filter|nokey|badkey)
+	 * @param		integer	$urlcount	required: number of (new) URLs
+	 * @param		integer	$user		optional: user/origin - default current user/origin
+	 * @param		integer	$time		optional: time - default current time
+	 * @return		mixed				bytes written if successful, FALSE otherwise.
+	 */
+	function logSpam($type,$tag,$body,$reason,$urlcount,$user='',$time='')
+	{
+		// set path
+		$spamlogpath = (isset($this->config['spamlog_path'])) ? $this->config['spamlog_path'] : DEF_SPAMLOG_PATH;	# @@@ make function
+		// gather data
+		if ($user == '')
+		{
+			$user = $this->GetUserName();					# defaults to REMOTE_HOST to domain for anonymous user
+		}
+		if ($time == '')
+		{
+			$time = date('Y-m-d H:i:s');					# current date/time
+		}
+		if (preg_match('/^mass delete/',$reason))			# @@@ i18n
+		{
+			$originip = '0.0.0.0';							# don't record deleter's IP address!
+		}
+		else
+		{
+			$originip = $_SERVER['REMOTE_ADDR'];
+		}
+		$ua			= (isset($_SERVER['HTTP_USER_AGENT'])) ? '['.$_SERVER['HTTP_USER_AGENT'].']' : '[?]';
+		$ua = $this->htmlspecialchars_ent($ua);
+		$body		= $this->htmlspecialchars_ent(trim($body));
+		$sig		= SPAMLOG_SIG.' '.$type.' '.$time.' '.$tag.' - '.$originip.' - '.$user.' '.$ua.' - '.$reason.' - '.$urlcount."\n";
+		$content	= $sig.$body."\n\n";
+
+		// add data to log			@@@ use appendFile
+		return $this->appendFile($spamlogpath,$content);	# nr. of bytes written if successful, FALSE otherwise
+	}
+
+	/**
+	 * Get all meta data lines from the spamlog and return the data in an array.
+	 *
+	 * @author		{@link http://wikka.jsnx.com/JavaWoman JavaWoman}
+	 * @copyright	Copyright © 2005, Marjolein Katsma
+	 * @license		http://www.gnu.org/copyleft/lesser.html GNU Lesser General Public License
+	 * @version		0.3
+	 *
+	 * @access		public
+	 *
+	 * @return		array		array with associative array for each metadata item in a line
+	 */
+	function getSpamlogSummary()
+	{
+		// set path
+		$spamlogpath = (isset($this->config['spamlog_path'])) ? $this->config['spamlog_path'] : DEF_SPAMLOG_PATH;	# @@@ make function
+		$aSummary = array();
+		$aLines = file($spamlogpath);						# get file as array so we can...
+		foreach ($aLines as $line)							# ... select the metadata
+		{
+			if (preg_match('/^'.SPAMLOG_SIG.'/',$line))
+			{
+				// gather data
+				list($header,$originIp,$userAgent,$reason,$urls) = explode(' - ',$line);
+				list(,$type,$day,$time,$page) = preg_split('/\s+/',$header);
+
+				$rc = preg_match('/^([^ ]+) \[([^\]]+)\]$/',$userAgent,$aMatches);
+				$user = (isset($aMatches[1])) ? $aMatches[1] : '?';
+				$ua   = (isset($aMatches[2])) ? $aMatches[2] : '?';
+
+				// write data
+				$aSummary[] = array('type'	=> $type,
+									'date'	=> $day.' '.$time,
+									'day'	=> $day,
+									'time'	=> $time,
+									'page'	=> $page,
+									'origin'=> $originIp,
+									'user'	=> $user,
+									'ua'	=> $ua,
+									'reason'=> $reason,
+									'urls'	=> $urls
+									);
+			}
+		}
+		return $aSummary;
+	}
+
+	// FILES (handling of text files)
+	/**
+	 * Read a local file, normalizing line endings.
+	 *
+	 * Reads a local file (not bothering to read in packets as would be needed
+	 * for network or remote files). Returns the content as a string with
+	 * normalized line endings ("\n"), or FALSE if the process failed for some
+	 * reason. Thus it is the caller's responsibility to provide a correct path
+	 * to an existing file.
+	 *
+	 * @author		{@link http://wikka.jsnx.com/JavaWoman JavaWoman}
+	 * @copyright	Copyright © 2005, Marjolein Katsma
+	 * @license		http://www.gnu.org/copyleft/lesser.html GNU Lesser General Public License
+	 * @version		0.5
+	 * @todo
+	 *
+	 * @access		public
+	 * @uses		normalizeLines()
+	 *
+	 * @param		string	$file  required: relative or absolute file path
+	 * @return		mixed		normalized file content if found, FALSE if not
+	 */
+	function readFile($file)
+	{
+		#if version_compare(PHP_VERSION >= '4.3.0')
+		if (function_exists('file_get_contents'))			# gives best performance
+		{
+			$content = file_get_contents($file);
+		}
+		else												# alternative
+		{
+			$fh = @fopen($file,'r');						# suppress warning with @
+			if (!$fh)
+			{
+				$content = FALSE;
+			}
+			else
+			{
+				$content = fread($fh,filesize($file));
+				fclose($fh);
+			}
+		}
+		if (FALSE !== $content)
+		{
+			$content = $this->normalizeLines($content);		# normalize line endings
+		}
+		return $content;
+	}
+
+	/**
+	 * Writes new content to a (text) file.
+	 *
+	 * The content is normalized for line endings ("\n") before writing; this
+	 * implies this method CANNOT be used for binary files.
+	 * Returns the number of bytes written if successful, FALSE otherwise.
+	 *
+	 * @author		{@link http://wikka.jsnx.com/JavaWoman JavaWoman}
+	 * @copyright	Copyright © 2005, Marjolein Katsma
+	 * @license		http://www.gnu.org/copyleft/lesser.html GNU Lesser General Public License
+	 * @version		0.5
+	 * @todo
+	 *
+	 * @access		public
+	 * @uses		normalizeLines()
+	 *
+	 * @param		string	$file		required: relative or absolute file path
+	 * @param		string	$content	required: contents be written to the file
+	 * @return		mixed				bytes written if successful, FALSE otherwise.
+	 */
+	function writeFile($file,$content)
+	{
+		$rc = FALSE;
+		$content = $this->normalizeLines($content);		# normalize line endings
+		if (function_exists('file_put_contents'))		# most efficient
+		{
+			$rc = file_put_contents($file,$content);
+#if (FALSE === $rc) echo 'file_put_contents FALSE!<br/>';
+			if (strlen($content) > 0 && $rc == 0) $rc = FALSE;		# for compatibility with fwrite() @@@ needed?
+		}
+		else											# alternative
+		{
+			$fh = @fopen($file,'w');					# open file for writing; suppress warning with @
+			if (FALSE !== $fh)
+			{
+				$rc = @fwrite($fh,$content);
+				fclose($fh);
+			}
+		}
+		return $rc;										# number of bytes written or FALSE if writing failed
+	}
+
+	/**
+	 * Appends new content to an existing file.
+	 *
+	 * The content is normalized for line endings ("\n") before writing; this
+	 * implies this method CANNOT be used for binary files.
+	 * Returns the number of bytes written if successful, FALSE otherwise.
+	 *
+	 * @author		{@link http://wikka.jsnx.com/JavaWoman JavaWoman}
+	 * @copyright	Copyright © 2005, Marjolein Katsma
+	 * @license		http://www.gnu.org/copyleft/lesser.html GNU Lesser General Public License
+	 * @version		0.5
+	 * @todo
+	 *
+	 * @access		public
+	 * @uses		normalizeLines()
+	 *
+	 * @param		string	$file		required: relative or absolute file path
+	 * @param		string	$content	required: contents be written to the file
+	 * @return		mixed				bytes written if successful, FALSE otherwise.
+	 */
+	function appendFile($file,$content)
+	{
+		$rc = FALSE;
+		$content = $this->normalizeLines($content);		# normalize line endings
+		if (function_exists('file_put_contents'))		# most efficient
+		{
+			$rc = file_put_contents($file,$content,FILE_APPEND);
+			if (strlen($content) > 0 && $rc == 0) $rc = FALSE;		# for compatibility with fwrite() @@@ needed?
+		}
+		else											# alternative
+		{
+			$fh = @fopen($file,'a');				# open file for appending/writing; suppress warning with @
+			if (FALSE !== $fh)
+			{
+				$rc = @fwrite($fh,$content);
+				fclose($fh);
+			}
+		}
+		return $rc;										# number of bytes written or FALSE if writing failed
+	}
+
+
 
 	/**#@-*/
 
@@ -1653,27 +1936,35 @@ class Wakka
 	 *
 	 * @param	string	$phrase	the text to be searched for 
      * @param   string  $caseSensitive	optional: 0 for case-insensitive search (default), 1 for case-sensitive search
+	 * @param   string $utf8Compatible optional: 0 for legacy search (case sensitive, wildcards, but incompatible with some character codings), 1 for UTF-8 compatible searches (non-case-sensitive, no wildcards) 
 	 * @return	string  Search results	
 	 */
-	function FullTextSearch($phrase, $caseSensitive = 0)
+	function FullTextSearch($phrase, $caseSensitive=0, $utf8Compatible=0)
 	{
 		if(empty($phrase))
 		{
 			return NULL;
 		}
-		$id = '';
-		// Should work with any browser/entity conversion scheme
-		$search_phrase = mysql_real_escape_string($phrase);
-		if ( 1 == $caseSensitive ) $id = ', id';
-		$sql  = 'select * from '.$this->config['table_prefix'].'pages';
-		$sql .= ' where latest = '.  "'Y'"  .' and match(tag, body'.$id.')';
-		$sql .= ' against('.  "'$search_phrase'"  .' IN BOOLEAN MODE)';
-		$sql .= ' order by time DESC';
-
+		$sql = '';
+		if(0 == $utf8Compatible)
+		{
+			$id = '';
+			// Should work with any browser/entity conversion scheme
+			$search_phrase = mysql_real_escape_string($phrase);
+			if ( 1 == $caseSensitive ) $id = ', id';
+			$sql  = "select * from ".$this->config['table_prefix']."pages where latest = ".  "'Y'" ." and match(tag, body".$id.") against(". "'$search_phrase'" ." IN BOOLEAN MODE) order by time DESC";
+		}
+		else
+		{
+			$search_phrase = mysql_real_escape_string($phrase);
+			$sql  = "select * from ".$this->config['table_prefix']."pages WHERE latest = ". "'Y'";
+			foreach( explode(' ', $search_phrase) as $term ) 
+				$sql .= " AND ((`tag` LIKE '%{$term}%') OR (body LIKE '%{$term}%'))";
+		}
 		$data = $this->LoadAll($sql);
-
 		return $data;
 	}
+
 
 	/**
 	 *
@@ -2204,7 +2495,6 @@ class Wakka
 	 * @access	public
 	 * @since	Wikka 1.1.6.2
 	 *
-	 * @uses	Config::$base_url
 	 * @param	string	$url: destination URL; if not specified redirect to the same page.
 	 * @param	string	$message: message that will show as alert in the destination URL
 	 */
@@ -2214,7 +2504,7 @@ class Wakka
 		{
 			$_SESSION['redirectmessage'] = $message;
 		}
-		$url = ($url == '' ) ? $this->GetConfigValue('base_url').$this->tag : $url;
+		$url = ($url == '' ) ? $this->wikka_url.$this->tag : $url;
 		if ((eregi('IIS', $_SERVER['SERVER_SOFTWARE'])) && ($this->cookies_sent))
 		{
 			@ob_end_clean();
@@ -2249,7 +2539,6 @@ class Wakka
 	 *
 	 * @uses	Config::$rewrite_mode
 	 * @uses	Wakka::MiniHref()
-	 * @uses	Config::$base_url
 	 * @param	$method
 	 * @param	$tag
 	 * @param	$params
@@ -2257,7 +2546,7 @@ class Wakka
 	 */
 	function Href($method='', $tag='', $params='')
 	{
-		$href = $this->GetConfigValue('base_url').$this->MiniHref($method, $tag);
+		$href = $this->wikka_url.$this->MiniHref($method, $tag);
 		if ($params)
 		{
 			$href .= ($this->GetConfigValue('rewrite_mode') ? '?' : '&amp;').$params;
@@ -2287,10 +2576,11 @@ class Wakka
 	 * @param	boolean	$escapeText	optional:
 	 * @param	string	$title		optional:
 	 * @param	string	$class		optional:
+	 * @param   boolean $assumePageExists	optional:
 	 * @return	string	an HTML hyperlink (a href) element
 	 * @todo	move regexps to regexp-library		#34
 	 */
-	function Link($tag, $handler='', $text='', $track=TRUE, $escapeText=TRUE, $title='', $class='')
+	function Link($tag, $handler='', $text='', $track=TRUE, $escapeText=TRUE, $title='', $class='', $assumePageExists=TRUE)
 	{
 		// init
 		if (!$text)
@@ -2305,7 +2595,7 @@ class Wakka
 		$handler = $this->htmlspecialchars_ent($handler);
 		$title_attr = $title ? ' title="'.$this->htmlspecialchars_ent($title).'"' : '';
 		$url = '';
-		$wikilink = '';
+		$link = '';
 
 		// is this an interwiki link?
 		// before the : should be a WikiName; anything after can be (nearly) anything that's allowed in a URL
@@ -2347,9 +2637,9 @@ class Wakka
 			{
 				$this->TrackLinkTo($tag);
 			}
-			if (!$this->existsPage($tag))
+			if (!$assumePageExists && !$this->existsPage($tag))
 			{
-				$link = '<a class="missingpage" href="'.$this->Href('edit', $tag).'" title="'.CREATE_THIS_PAGE_LINK_TITLE.'">'.$text.'</a>';
+				$link = '<a class="missingpage" href="'.$this->Href('edit', $tag).'" title="'.T_("Create this page").'">'.$text.'</a>';
 			}
 			else
 			{
@@ -2513,7 +2803,7 @@ class Wakka
 			foreach ($linktable as $to_tag)
 			{
 				$lower_to_tag = strtolower($to_tag);
-				if ((!$written[$lower_to_tag]) && ($lower_to_tag != strtolower($from_tag)))
+				if ((!isset($written[$lower_to_tag])) && ($lower_to_tag != strtolower($from_tag)))
 				{
 					if ($sql)
 					{
@@ -2568,7 +2858,7 @@ class Wakka
 	{
 		$filename = 'header.php';
 		$path = $this->GetThemePath();
-		$header = $this->IncludeBuffered($filename, ERROR_HEADER_MISSING, '', $path);
+		$header = $this->IncludeBuffered($filename, T_("A header template could not be found. Please make sure that a file called <code>header.php</code> exists in the templates directory."), '', $path);
 		return $header;
 	}
 
@@ -2583,7 +2873,7 @@ class Wakka
 	{
 		$filename = 'footer.php';
 		$path = $this->GetThemePath();
-		$footer = $this->IncludeBuffered($filename, ERROR_FOOTER_MISSING, '', $path);
+		$footer = $this->IncludeBuffered($filename, T_("A footer template could not be found. Please make sure that a file called <code>footer.php</code> exists in the templates directory."), '', $path);
 		return $footer;
 	}
 
@@ -2604,10 +2894,11 @@ class Wakka
 	 * @param  string path_sep Use this to override the OS default
 	 * DIRECTORY_SEPARATOR (usually used in conjunction with CSS path
 	 * generation). Default is DIRECTORY_SEPARATOR.
+	 * @param  string theme_override Specify a specific theme. Default is NULL (use configuration theme).
 	 *
      * @return string A fully-qualified pathname or NULL if none found
 	 */
-	 function GetThemePath($path_sep = DIRECTORY_SEPARATOR)
+	 function GetThemePath($path_sep = DIRECTORY_SEPARATOR, $theme_override = NULL)
 	 {
 	 	//check if custom theme is set in user preferences
 	 	if ($user = $this->GetUser())
@@ -2617,6 +2908,10 @@ class Wakka
 		else
 		{
 			$theme = $this->GetConfigValue('theme');
+		}
+		if(NULL !== $theme_override)
+		{
+			$theme = $theme_override;
 		}
 		$path = $this->BuildFullpathFromMultipath($theme, $this->GetConfigValue('wikka_template_path'), $path_sep);
 	 	if(FALSE===file_exists($path))
@@ -2669,7 +2964,7 @@ class Wakka
 			}
 		}
 		$output = '<select id="select_theme" name="theme">';
-		$output .= '<option disabled="disabled">'.sprintf(DEFAULT_THEMES_TITLE, count($core)).'</option>';
+		$output .= '<option disabled="disabled">'.sprintf(T_("Default themes (%s)"), count($core)).'</option>';
 		foreach ($core as $c)
 		{
 			$output .= "\n ".'<option value="'.$c.'"';
@@ -2679,7 +2974,7 @@ class Wakka
 		//display custom themes if any
 		if (count($plugin)>0)
 		{
-			$output .= '<option disabled="disabled">'.sprintf(CUSTOM_THEMES_TITLE, count($plugin)).'</option>';
+			$output .= '<option disabled="disabled">'.sprintf(T_("Custom themes (%s)"), count($plugin)).'</option>';
 			foreach ($plugin as $p)
 			{
 				$output .= "\n ".'<option value="'.$p.'"';
@@ -2808,10 +3103,7 @@ class Wakka
 		// add validation key fields used against FormSpoofing
 		if('post' == $formMethod)
 		{
-			$tmp = $this->createSessionKey($id);
-			$hidden[$tmp[0]] = $tmp[1];
-			unset($tmp);
-			$hidden['form_id'] = $id;
+			$hidden['CSRFToken'] = $_SESSION['CSRFToken'];
 		}
 
 		// build HTML fragment
@@ -2919,7 +3211,6 @@ class Wakka
 	 * @uses	Wakka::GetConfigValue()
 	 * @uses	Wakka::LoadSingle()
 	 * @uses	Wakka::Query()
-	 * @uses	Config::$base_url
 	 * @uses	Config::$table_prefix
 	 * @param	$tag
 	 * @param	$referrer
@@ -2941,8 +3232,7 @@ class Wakka
 		$referrer = trim($this->cleanUrl($referrer));			# secured JW 2005-01-20
 
 		// check if it's coming from another site
-		#if ($referrer && !preg_match('/^'.preg_quote($this->GetConfigValue('base_url'), '/').'/', $referrer))
-		if (!empty($referrer) && !preg_match('/^'.preg_quote($this->GetConfigValue('base_url'), '/').'/', $referrer))
+		if (!empty($referrer) && !preg_match('/^'.preg_quote(WIKKA_BASE_URL, '/').'/', $referrer))
 		{
 			$parsed_url = parse_url($referrer);
 			$spammer = $parsed_url['host'];
@@ -3012,7 +3302,7 @@ class Wakka
 		// and thus provides defense against directory traversal or XSS (via action *name*)
 		if (!preg_match('/^\s*([a-zA-Z0-9]+)(\s.+?)?\s*$/', $actionspec, $matches))	# see also #34
 		{
-			return '<em class="error">'.ACTION_UNKNOWN_SPECCHARS.'</em>';	# [SEC]
+			return '<em class="error">'.T_("Unknown action; the action name must not contain special characters.").'</em>';	# [SEC]
 		}
 		else
 		{
@@ -3059,7 +3349,8 @@ class Wakka
 				$this->StopLinkTracking();
 		}
 		$result =
-		$this->IncludeBuffered(strtolower($action_name).DIRECTORY_SEPARATOR.strtolower($action_name).'.php', sprintf(ACTION_UNKNOWN, '"'.$action_name.'"'), $vars, $this->config['action_path']);
+		$this->IncludeBuffered(strtolower($action_name).DIRECTORY_SEPARATOR.strtolower($action_name).'.php',
+		sprintf(T_("Unknown action \"%s\""), '"'.$action_name.'"'), $vars, $this->config['action_path']);
 		if ($link_tracking_state)
 		{
 			$this->StartLinkTracking();
@@ -3072,7 +3363,7 @@ class Wakka
 	 *
 	 * @uses	Wakka::GetConfigValue()
 	 * @uses	Wakka::IncludeBuffered()
-	 * @uses	Wakka::wrapHandlerError()
+         * @uses        Wakka::wrapHandlerError()
 	 * @uses	Config::$handler_path
 	 *
 	 * @param	string	$handler	mandatory: name of handler to execute
@@ -3099,7 +3390,7 @@ class Wakka
 		// @todo move regexp to library
 		if (!preg_match('/^([a-zA-Z0-9_.-]+)$/', $handler)) // allow letters, numbers, underscores, dashes and dots only (for now); see also #34
 		{
-			return $this->wrapHandlerError(HANDLER_UNKNOWN_SPECCHARS);	# [SEC]
+			return $this->wrapHandlerError(T_("Unknown handler; the handler name must not contain special characters."));	# [SEC]
 		}
 		else
 		{
@@ -3107,31 +3398,31 @@ class Wakka
 			$handler = strtolower($handler);
 		}
 		$handlerLocation = $handler.DIRECTORY_SEPARATOR.$handler.'.php';	#89
-		$tempOutput = $this->IncludeBuffered($handlerLocation, '', '', $this->config['handler_path']);
-		if (FALSE===$tempOutput)
-		{
-			return $this->wrapHandlerError(sprintf(HANDLER_UNKNOWN, '"'.$handlerLocation.'"'));
-		}
-		return $tempOutput;
+                $tempOutput = $this->IncludeBuffered($handlerLocation, '', '', $this->config['handler_path']);
+                if (FALSE===$tempOutput)
+                {
+                        return $this->wrapHandlerError(sprintf(T_("Sorry, %s is an unknown handler."), '"'.$handlerLocation.'"'));
+                }
+                return $tempOutput;
 	}
 
-	/**
-	 * Wrap a error message in a content div and an em tag, to avoid breaking the layout on handler errors.
-	 *
-	 * @author		{@link http://wikkawiki.org/TormodHaugen Tormod Haugen} (created 2010)
-	 *
-	 * @uses	Wakka::htmlspecialchars_ent
-	 *
-	 * @param	string $errorMessage	error message to be wrapped to avoid breaking layout
-	 * @return	string The wrapped error message
-	 */
-	function wrapHandlerError($errorMessage)
-	{
-		$errorMessage = $this->htmlspecialchars_ent(trim($errorMessage));
-		$errorMessage = '<!-- <wiki-error>handler error</wiki-error> --><div id="content"><em class="error">'.$errorMessage.'</em></div>';
-		
-		return $errorMessage;
-	}
+        /**
+         * Wrap a error message in a content div and an em tag, to avoid breaking the layout on handler errors.
+         *
+         * @author              {@link http://wikkawiki.org/TormodHaugen Tormod Haugen} (created 2010)
+         *
+         * @uses        Wakka::htmlspecialchars_ent
+         *
+         * @param       string $errorMessage    Localized error message to be wrapped to avoid breaking layout
+         * @return      string The wrapped error message
+         */
+        function wrapHandlerError($errorMessage)
+        {
+                $errorMessage = $this->htmlspecialchars_ent(trim($errorMessage));
+                $errorMessage = '<!-- <wiki-error>handler error</wiki-error> --><div id="content"><em class="error">'.$errorMessage.'</em></div>';
+
+                return $errorMessage;
+        }
 
 	/**
 	 * Check if a handler (specified after page name) really exists.
@@ -3188,7 +3479,7 @@ class Wakka
 		// directory traversal or XSS (via handler *name*)
 		if (!preg_match('/^([a-zA-Z0-9_.-]+)$/', $formatter)) # see also #34
 		{
-			$out = '<!-- <wiki-error>unknown action</wiki-error> --><em class="error">'.FORMATTER_UNKNOWN_SPECCHARS.'</em>';	# [SEC]
+			$out = '<!-- <wiki-error>unknown action</wiki-error> --><em class="error">'.T_("Unknown formatter; the formatter name must not contain special characters.").'</em>';	# [SEC]
 		}
 		else
 		{
@@ -3197,7 +3488,7 @@ class Wakka
 			// prepare variables
 			$formatter_location			= $formatter.'.php';
 			$formatter_location_disp	= '<code>'.$this->htmlspecialchars_ent($formatter_location).'</code>';	// [SEC] make error (including (part of) request) safe to display
-			$formatter_not_found		= sprintf(FORMATTER_UNKNOWN,$formatter_location_disp);
+			$formatter_not_found		= sprintf(T_("Formatter \"%s\" not found"),$formatter_location_disp);
 			// produce output
 			//$out = $this->IncludeBuffered($formatter_location, $this->GetConfigValue('wikka_formatter_path'), $formatter_not_found, FALSE, compact('text', 'format_option')); // @@@
 			$out = $this->IncludeBuffered($formatter_location, $formatter_not_found, compact('text', 'format_option'), $this->GetConfigValue('wikka_formatter_path'));
@@ -3528,7 +3819,7 @@ class Wakka
 		else
 		{
 			// no user (page has empty user field)
-			$formatted_user = 'anonymous'; // @@@ #i18n WIKKA_ANONYMOUS_AUTHOR_CAPTION or WIKKA_ANONYMOUS_USER
+			$formatted_user = 'anonymous'; // @@@ #i18n T_("(.T_("unregistered user").'") or T_("anonymous")
 		}
 		return $formatted_user;
 	}
@@ -3653,6 +3944,24 @@ class Wakka
 			$this->TraverseComments($tag, $record);
 			return $record;
 		}
+	}
+
+	/**
+	 * Select and load a single comment.
+	 *
+	 * @author		{@link http://wikka.jsnx.com/JavaWoman JavaWoman}
+	 * @copyright	Copyright © 2005, Marjolein Katsma
+	 * @license		http://www.gnu.org/copyleft/lesser.html GNU Lesser General Public License
+	 *
+	 * @access	public
+	 * @uses	LoadAll()
+	 *
+	 * @param	integer	$comment_id	required: id of comment to be deleted
+	 * @return	array 				associative array with comment data.
+	 */
+	function loadCommentId($comment_id)
+	{
+		return $this->LoadSingle("SELECT * FROM ".$this->config["table_prefix"]."comments WHERE id = '".$comment_id."'");
 	}
 
 	/**
@@ -3873,6 +4182,26 @@ class Wakka
 				parent = ".$parent_id.",
 				user = '".mysql_real_escape_string($user)."'"
 			);
+	}
+
+	/**
+	 * Delete a comment.
+	 *
+	 * @author		{@link http://wikka.jsnx.com/JavaWoman JavaWoman}
+	 * @copyright	Copyright © 2005, Marjolein Katsma
+	 * @license		http://www.gnu.org/copyleft/lesser.html GNU Lesser General Public License
+	 *
+	 * @access	public
+	 * @uses	Query()
+	 *
+	 * @param	integer	$comment_id	required: id of comment to be deleted
+	 * @return	boolean 			TRUE if successful, FALSE otherwise.
+	 */
+	function deleteComment($comment_id)
+	{
+		$rc = $this->Query("DELETE FROM ".$this->config["table_prefix"]."comments ".
+							"WHERE id = '".$comment_id."'");
+		return $rc;
 	}
 
 	/**#@-*/
@@ -4207,6 +4536,145 @@ class Wakka
 		return FALSE;
 	}
 
+	// ANTI-SPAM
+	/**
+	 * Read contents of badwords file.
+	 *
+	 * Reads the content of the badwords file. Return contents as string if found, FALSE if not.
+	 *
+	 * @author		{@link http://wikka.jsnx.com/JavaWoman JavaWoman}
+	 * @copyright	Copyright © 2005, Marjolein Katsma
+	 * @license		http://www.gnu.org/copyleft/lesser.html GNU Lesser General Public License
+	 * @version		0.5
+	 *
+	 * @access		public
+	 *
+	 * @return		mixed		normalized file content (sorted) if found, FALSE if not
+	 */
+	function readBadWords()
+	{
+		$badwordspath = (isset($this->config['badwords_path'])) ? $this->config['badwords_path'] : DEF_BADWORDS_PATH;	# @@@ make function
+		if (file_exists($badwordspath))
+		{
+			$aBadWords = file($badwordspath);				# get file as array so we can...
+			$aBadWords = array_unique($aBadWords);			# ...remove duplicates...
+			function _rot13($val) {
+				return str_rot13($val);
+			};
+			$aBadWords = array_map("_rot13", $aBadWords);
+
+			natcasesort($aBadWords);						# ...and sort
+			$badwords = $this->normalizeLines(implode('',$aBadWords));	# turn back into string
+		}
+		else
+		{
+			$badwords = FALSE;
+		}
+		return $badwords;
+	}
+
+	/**
+	 * Writes or rewrites the badwords file from a string with one word per line.
+	 *
+	 * Input must be a string with (preferably) one word per line; empty lines are filtered.
+	 * If the file exists, it is overwritten with the new content.
+	 * Returns TRUE if successful, FALSE otherwise.
+	 *
+	 * @author		{@link http://wikka.jsnx.com/JavaWoman JavaWoman}
+	 * @copyright	Copyright © 2005, Marjolein Katsma
+	 * @license		http://www.gnu.org/copyleft/lesser.html GNU Lesser General Public License
+	 * @version		0.6
+	 *
+	 * @access		public
+	 * @uses		writeFile()
+	 *
+	 * @param		string	$lines	lines with one bad word on each
+	 * @return		mixed			bytes written if successful, FALSE otherwise.
+	 */
+	function writeBadWords($lines)
+	{
+		$badwordspath = (isset($this->config['badwords_path'])) ? $this->config['badwords_path'] : DEF_BADWORDS_PATH;	# @@@ make function
+		$rc = FALSE;
+		if (file_exists($badwordspath))
+		{
+			// build content
+			$lines = $this->normalizeLines($lines);			# normalize line endings (needed for explode!)
+			$lines = preg_replace('/[ \t]+/',"\n",$lines);	# split any multiple-word lines
+			$aBadWords = explode("\n",$lines);				# turn into array so we can...
+			$aBadWords = array_unique($aBadWords);			# ...remove duplicates
+			natcasesort($aBadWords);						# ...and sort
+			$badwords = '';
+			foreach ($aBadWords as $word)
+			{
+				if ('' !== $word) $badwords .= str_rot13($word)."\n";	# get rid of empty lines
+			}
+			$content = trim($badwords);
+			// write to file
+			$rc = $this->writeFile($badwordspath,$content);
+		}
+		return $rc;											# number of bytes written or FALSE if writing failed
+	}
+
+	/**
+	 * Retrieves badwords in a format ready for a RegEx, with '|' between each word.
+	 *
+	 * Turns the content of the badwords file into a RegEx (minus delimiters).
+	 * Return contents as a string if there is any; FALSE if file not found or empty.
+	 *
+	 * @author		{@link http://wikka.jsnx.com/JavaWoman JavaWoman}
+	 * @copyright	Copyright © 2005, Marjolein Katsma
+	 * @license		http://www.gnu.org/copyleft/lesser.html GNU Lesser General Public License
+	 * @version		0.5
+	 *
+	 * @access		public
+	 * @uses		readBadWords()
+	 *
+	 * @return		mixed		RegEx with words if found and not empty, FALSE otherwise
+	 */
+	function getBadWords()
+	{
+		$badwords = $this->readBadWords();
+		if (FALSE === $badwords || '' == $badwords)
+		{
+			return FALSE;
+		}
+		else
+		{
+			return '('.str_replace("\n",'|',$badwords).')';
+		}
+	}
+
+	/**
+	 * Check content to see if it contains any bad words.
+	 *
+	 * Uses a RegEx built by getBadWords() to check the given content.
+	 * Returns TRUE if teh content contains any of the bad words, FALSE otherwise.
+	 *
+	 * @author		{@link http://wikka.jsnx.com/JavaWoman JavaWoman}
+	 * @copyright	Copyright © 2005, Marjolein Katsma
+	 * @license		http://www.gnu.org/copyleft/lesser.html GNU Lesser General Public License
+	 * @version		0.5
+	 *
+	 * @access		public
+	 * @uses		getBadWords()
+	 * @todo
+	 *
+	 * @param		string $content	string to check for occurrence of bad words
+	 * @return		boolean			TRUE if content contains badwords, FALSE otherwise
+	 */
+	function hasBadWords($content)
+	{
+		$re = $this->getBadWords();
+		if (FALSE === $re)
+		{
+			return FALSE;					# no match since no words are defined
+		}
+		else
+		{
+			return preg_match('/'.$re.'/i',$content);		# case-insensitive comparison
+		}
+	}
+
 	/**#@-*/
 
 	/**
@@ -4328,6 +4796,9 @@ class Wakka
 		$this->wikka_cookie_path = ('/' == $base_url_path) ? '/' : substr($base_url_path,0,-1);
 
 		// do our stuff!
+		$this->wikka_url = ((bool) $this->GetConfigValue('rewrite_mode')) ? WIKKA_BASE_URL : WIKKA_BASE_URL.WIKKA_URL_EXTENSION;
+		$this->config['base_url'] = $this->wikka_url; #backward compatibility
+
 		if (!$this->handler = trim($method)) $this->handler = 'show';
 		if (!$this->tag = trim($tag)) $this->Redirect($this->Href('', $this->GetConfigValue('root_page')));
 		if ($this->GetUser())
@@ -4381,6 +4852,11 @@ class Wakka
 		elseif(0 !== strcmp($newtag = preg_replace('/\s+/', '_', $tag), $tag))
 		{
 			header("Location: ".$this->Href('', $newtag));
+		}
+		elseif($this->handler == 'html')
+		{
+			header('Content-type: text/html');
+			print($this->handler($this->handler));
 		}
 		else
 		{
