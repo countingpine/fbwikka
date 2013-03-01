@@ -32,6 +32,7 @@
 
 if (!defined('ERROR_DIV_LIBRARY_MISSING')) define ('ERROR_DIV_LIBRARY_MISSING', 'The necessary file "libs/diff.lib.php" could not be found. Please make sure the file exists and is placed in the right directory!');
 if (!defined('ERROR_NO_PAGE_ACCESS')) define ('ERROR_NO_PAGE_ACCESS', 'You are not authorized to view this page.');
+if (!defined('ERROR_BAD_PARAMETERS')) define ('ERROR_BAD_PARAMETERS', 'Sorry, no revisions to compare were specified.');
 if (!defined('CONTENT_ADDITIONS_HEADER')) define ('CONTENT_ADDITIONS_HEADER', 'Additions:');
 if (!defined('CONTENT_DELETIONS_HEADER')) define ('CONTENT_DELETIONS_HEADER', 'Deletions:');
 if (!defined('CONTENT_NO_DIFFERENCES')) define ('CONTENT_NO_DIFFERENCES', 'No Differences');
@@ -40,7 +41,7 @@ if (!defined('UNREGISTERED_USER')) define('UNREGISTERED_USER', 'unregistered use
 if (!defined('DIFF_SIMPLE_BUTTON')) define('DIFF_SIMPLE_BUTTON', 'Simple Diff');
 if (!defined('DIFF_FULL_BUTTON')) define('DIFF_FULL_BUTTON', 'Full Diff');
 
-echo '<div class="page">'."\n"; //TODO: move to templating class //TODO move _after_ redirect
+echo '<div id="content">'."\n"; //TODO: move to templating class //TODO move _after_ redirect
 
 $output = '';
 $info = '';
@@ -65,7 +66,6 @@ if ($this->HasAccess('read'))
 	$pageB = (isset($_GET['b'])) ? $this->LoadPageById($_GET['b']) : '';	# #312
 	if ('' == $pageA || '' == $pageB)
 	{
-		echo '<div class="page">'."\n";
 		echo '<em class="error">'.ERROR_BAD_PARAMETERS.'</em><br />';
 		echo '</div>'."\n";
 		return;

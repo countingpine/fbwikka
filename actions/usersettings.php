@@ -98,6 +98,7 @@ if (!defined('RETRIEVE_PASSWORD_HEADING')) define('RETRIEVE_PASSWORD_HEADING', "
 if (!defined('RETRIEVE_PASSWORD_MESSAGE')) define('RETRIEVE_PASSWORD_MESSAGE', "If you need a password reminder, click [[PasswordForgotten here]]. --- You can login here using your password reminder.");
 if (!defined('TEMP_PASSWORD_LABEL')) define('TEMP_PASSWORD_LABEL', "Password reminder:");
 if (!defined('USERSETTINGS_REDIRECT_AFTER_LOGIN_LABEL')) define('USERSETTINGS_REDIRECT_AFTER_LOGIN_LABEL', 'Redirect to %s after login');	// %s page to redirect to
+if (!defined('THEME_LABEL')) define('THEME_LABEL', 'Theme:');
 
 if (!defined('ERROR_FBWIKI_REGISTRATION_DISABLED')) define('ERROR_FBWIKI_REGISTRATION_DISABLED', "Sorry, no new users are being accepted, please post a message in the Documentation forum requesting for an account, thanks.");
 
@@ -180,6 +181,7 @@ else if ($user = $this->GetUser())
 		$show_comments = $this->GetSafeVar('show_comments', 'post');
 		$revisioncount = (int) $this->GetSafeVar('revisioncount', 'post');
 		$changescount = (int) $this->GetSafeVar('changescount', 'post');
+		$usertheme = $this->GetSafeVar('theme', 'post');
 
 		// validate form input
 		switch (TRUE)
@@ -206,7 +208,8 @@ else if ($user = $this->GetUser())
 					"doubleclickedit = '".mysql_real_escape_string($doubleclickedit)."', ".
 					"show_comments = '".mysql_real_escape_string($show_comments)."', ".
 					"revisioncount = '".mysql_real_escape_string($revisioncount)."', ".
-					"changescount = '".mysql_real_escape_string($changescount)."' ".
+					"changescount = '".mysql_real_escape_string($changescount)."', ".
+					"theme = '".mysql_real_escape_string($usertheme)."' ".
 					"WHERE name = '".$user['name']."' LIMIT 1");
 				$this->SetUser($this->LoadUser($user["name"]));
 
@@ -224,6 +227,7 @@ else if ($user = $this->GetUser())
 		$show_comments = $user['show_comments'];
 		$revisioncount = $user['revisioncount'];
 		$changescount = $user['changescount'];
+		$usertheme = ($user['theme']!= '')? $user['theme'] : $this->GetConfigValue('theme');
 	}
 
 	// display user settings form
@@ -282,6 +286,10 @@ else if ($user = $this->GetUser())
 		<tr>
 			<td align="right"><?php echo RECENTCHANGES_DISPLAY_LIMIT_LABEL ?></td>
 			<td><input <?php echo $changescount_highlight; ?> name="changescount" value="<?php echo $this->htmlspecialchars_ent($changescount) ?>" size="40" /></td>
+		</tr>
+		<tr>
+			<td align="right"><?php echo THEME_LABEL ?></td>
+			<td><?php $this->SelectTheme($usertheme); ?></td>
 		</tr>
 		<tr>
 			<td>&nbsp;</td>

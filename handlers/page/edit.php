@@ -87,12 +87,12 @@ if(isset($_POST['cancel']) && ($_POST['cancel'] == INPUT_BUTTON_CANCEL))
 	$this->Redirect($this->Href());
 }
 
-if (isset($_POST['submit']) && ($_POST['submit'] == 'Preview') && ($user = $this->GetUser()) && ($user['doubleclickedit'] != 'N'))
+if (isset($_POST['submit']) && ($_POST['submit'] == INPUT_SUBMIT_PREVIEW) && ($user = $this->GetUser()) && ($user['doubleclickedit'] != 'N'))
 {
 	$ondblclick = ' ondblclick=\'document.getElementById("reedit_id").click();\'';
 }
 ?>
-<div class="page"<?php echo $ondblclick;?>>
+<div id="content"<?php echo $ondblclick;?>>
 <?php
 if (!(preg_match(VALID_PAGENAME_PATTERN, $this->tag))) { //TODO use central regex library
 	echo '<!-- <wiki-error>invalid page name</wiki-error> --><em class="error">'.ERROR_INVALID_PAGENAME.'</em>';
@@ -141,7 +141,7 @@ elseif ($this->HasAccess("write") && $this->HasAccess("read"))
 			$note = trim($_POST['note']);
 		}
 		// only if saving:
-		if (isset($_POST['submit']) && $_POST['submit'] == 'Store')
+		if (isset($_POST['submit']) && $_POST['submit'] == INPUT_SUBMIT_STORE)
 		{
 			if (FALSE != ($aKey = $this->getSessionKey($_POST['form_id'])))	# check if form key was stored in session
 			{
@@ -176,11 +176,11 @@ elseif ($this->HasAccess("write") && $this->HasAccess("read"))
 
 					// now we render it internally so we can write the updated link table.
 					$this->ClearLinkTable();
-					$this->StartLinkTracking();
 					$dummy = $this->Header();
+					$this->StartLinkTracking();
 					$dummy .= $this->Format($body);
-					$dummy .= $this->Footer();
 					$this->StopLinkTracking();
+					$dummy .= $this->Footer();
 					$this->WriteLinkTable();
 					$this->ClearLinkTable();
 				}

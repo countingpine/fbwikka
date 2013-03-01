@@ -65,7 +65,15 @@ if (!defined('WIKI_UPGRADE_NOTICE')) define('WIKI_UPGRADE_NOTICE', 'This site is
 /**
  * Defines the current Wikka version. Do not change the version number or you will have problems upgrading.
  */
-if (!defined('WAKKA_VERSION')) define('WAKKA_VERSION', '1.1.6.7');
+if (!defined('WAKKA_VERSION')) define('WAKKA_VERSION', '1.2');
+
+/**#@-*/
+/**
+ * Defines the current Wikka patch level. This should be 0 by default, 
+ * and does not need to be changed for major/minor releases.
+ */
+if(!defined('WIKKA_PATCH_LEVEL')) define('WIKKA_PATCH_LEVEL', '1');
+
 
 /**#@+
  * Simple constant. May be made a configurable value.
@@ -101,62 +109,79 @@ if (!function_exists('mysql_connect'))
 	die(ERROR_MYSQL_SUPPORT_MISSING);
 }
 
-if (! function_exists('bytesToHumanReadableUsage')) {
-        /**
-        * Converts bytes to a human readable string
-        * @param int $bytes Number of bytes
-        * @param int $precision Number of decimal places to include in return string
-        * @param array $names Custom usage strings
-        * @return string formatted string rounded to $precision
-        */
-        function bytesToHumanReadableUsage($bytes, $precision = 2, $names = '')
-        {
-           if (!is_numeric($bytes) || $bytes < 0) {
-               return false;
-           }
-       
-           for ($level = 0; $bytes >= 1024; $level++) {    
-               $bytes /= 1024;      
-           }
-   
-           switch ($level)
-           {
-               case 0:
-                   $suffix = (isset($names[0])) ? $names[0] : 'Bytes';
-                   break;
-               case 1:
-                   $suffix = (isset($names[1])) ? $names[1] : 'KB';
-                   break;
-               case 2:
-                   $suffix = (isset($names[2])) ? $names[2] : 'MB';
-                   break;
-               case 3:
-                   $suffix = (isset($names[3])) ? $names[3] : 'GB';
-                   break;      
-               case 4:
-                   $suffix = (isset($names[4])) ? $names[4] : 'TB';
-                   break;                            
-               default:
-                   $suffix = (isset($names[$level])) ? $names[$level] : '';
-                   break;
-           }
-   
-           if (empty($suffix)) {
-               trigger_error('Unable to find suffix for case ' . $level);
-               return false;
-           }
-   
-           return round($bytes, $precision) . ' ' . $suffix;
-        }
+if (! function_exists('mkdir_r')) 
+{
+	/**
+	 * Create upload folder if it does not exist yet.
+	 * 
+	 * @param $dir
+	 * @return bool
+	 */
+	function mkdir_r($dir)
+	{
+		if (strlen($dir) == 0) 
+		{
+			return 0;
+		}
+		if (is_dir($dir)) 
+		{
+			return 1;
+		}
+		elseif (dirname($dir) == $dir) 
+		{
+			return 1;
+		}
+		return (@mkdir($dir,0755));
+	}
 }
 
-if (! function_exists('mkdir_r')) {
-    function mkdir_r ($dir) {
-        if (strlen($dir) == 0) return 0;
-        if (is_dir($dir)) return 1;
-        elseif (dirname($dir) == $dir) return 1;
-        return (mkdir_r(dirname($dir)) and mkdir($dir,0755));
-    }
+if (! function_exists('bytesToHumanReadableUsage')) {
+	/**
+	* Converts bytes to a human readable string
+	* @param int $bytes Number of bytes
+	* @param int $precision Number of decimal places to include in return string
+	* @param array $names Custom usage strings
+	* @return string formatted string rounded to $precision
+	*/
+	function bytesToHumanReadableUsage($bytes, $precision = 2, $names = '')
+	{
+		if (!is_numeric($bytes) || $bytes < 0) {
+			return false;
+		}
+   
+		for ($level = 0; $bytes >= 1024; $level++) {
+			$bytes /= 1024;
+		}
+
+		switch ($level)
+		{
+		case 0:
+			$suffix = (isset($names[0])) ? $names[0] : 'Bytes';
+			break;
+		case 1:
+			$suffix = (isset($names[1])) ? $names[1] : 'KB';
+			break;
+		case 2:
+			$suffix = (isset($names[2])) ? $names[2] : 'MB';
+			break;
+		case 3:
+			$suffix = (isset($names[3])) ? $names[3] : 'GB';
+			break;
+		case 4:
+			$suffix = (isset($names[4])) ? $names[4] : 'TB';
+			break;
+		default:
+			$suffix = (isset($names[$level])) ? $names[$level] : '';
+			break;
+		}
+
+		if (empty($suffix)) {
+			trigger_error('Unable to find suffix for case ' . $level);
+			return false;
+		}
+
+		return round($bytes, $precision) . ' ' . $suffix;
+	}
 }
 
 /**
@@ -176,8 +201,8 @@ else
 // Sanity checks OK - start rolling....
 
 ob_start();
+global $tstart;
 $tstart = getmicrotime();
-
 set_magic_quotes_runtime(0);
 if (get_magic_quotes_gpc())
 {
@@ -238,11 +263,12 @@ $wakkaDefaultConfig = array(
 	'base_url'					=> $t_scheme.$t_domain.$t_port.$t_request.$t_query,
 	'rewrite_mode'				=> $t_rewrite_mode,
 	'wiki_suffix'				=> '@wikka',
+	'enable_user_host_lookup'	=> '1',	#enable (1, default) or disable (0) lookup of user hostname from IP address
 
 	'action_path'				=> 'plugins/actions'.PATH_DIVIDER.'actions',
 	'handler_path'				=> 'plugins/handlers'.PATH_DIVIDER.'handlers',
 	'gui_editor'				=> '1',
-	'stylesheet'				=> 'wikka.css',
+	'theme'						=> 'light',
 
 	// formatter and code highlighting paths
 	'wikka_formatter_path' 		=> 'plugins/formatters'.PATH_DIVIDER.'formatters',		# (location of Wikka formatter - REQUIRED)
@@ -252,10 +278,7 @@ $wakkaDefaultConfig = array(
 
 	// template
 	'wikka_template_path' 		=> 'plugins/templates'.PATH_DIVIDER.'templates',		# (location of Wikka template files - REQUIRED)
-
-	'navigation_links'			=> '[[CategoryCategory Categories]] :: PageIndex ::  RecentChanges :: RecentlyCommented :: [[UserSettings Login/Register]]',
-	'logged_in_navigation_links' => '[[CategoryCategory Categories]] :: PageIndex :: RecentChanges :: RecentlyCommented :: [[UserSettings Change settings/Logout]]',
-
+	'safehtml_path'				=> '3rdparty/core/safehtml',
 	'referrers_purge_time'		=> '30',
 	'pages_purge_time'			=> '0',
 	'xml_recent_changes'		=> '10',
@@ -283,7 +306,8 @@ $wakkaDefaultConfig = array(
 	'default_read_acl'			=> '*',
 	'default_comment_acl'		=> '*',
 	'allow_user_registration'	=> '1',
-	'enable_version_check'      => '1'
+	'enable_version_check'      => '1',
+	'version_check_interval'	=> '1h'
 	);
 
 // load config
@@ -311,6 +335,22 @@ if (isset($wakkaConfig['footer_action'])) //since 1.1.6.4
 {
 	unset($wakkaConfig['footer_action']);
 }
+
+// Remove old stylesheet, #6
+if(isset($wakkaConfig['stylesheet']))
+{
+	unset($wakkaConfig['stylesheet']); // since 1.2
+}
+
+// Add plugin paths if they do not already exist
+if(isset($wakkaConfig['action_path']) && preg_match('/plugins\/actions/', $wakkaConfig['action_path']) <= 0)
+	$wakkaConfig['action_path'] = "plugins/actions," .  $wakkaConfig['action_path'];	
+if(isset($wakkaConfig['handler_path']) && preg_match('/plugins\/handlers/', $wakkaConfig['handler_path']) <= 0)
+	$wakkaConfig['handler_path'] = "plugins/handlers," .  $wakkaConfig['handler_path'];	
+if(isset($wakkaConfig['wikka_template_path']) && preg_match('/plugins\/templates/', $wakkaConfig['wikka_template_path']) <= 0)
+	$wakkaConfig['wikka_template_path'] = "plugins/templates," .  $wakkaConfig['wikka_template_path'];	
+if(isset($wakkaConfig['wikka_formatter_path']) && preg_match('/plugins\/formatters/', $wakkaConfig['wikka_formatter_path']) <= 0)
+	$wakkaConfig['wikka_formatter_path'] = "plugins/formatters," .  $wakkaConfig['wikka_formatter_path'];	
 
 $wakkaConfig = array_merge($wakkaDefaultConfig, $wakkaConfig);	// merge defaults with config from file
 
@@ -443,19 +483,11 @@ if(NULL != $user)
  */
 if (!isset($method)) $method='';
 $wakka->Run($page, $method);
-if (!preg_match("/(xml|raw|mm|grabcode)$/", $method))
-{
-	$tend = getmicrotime();
-	//calculate the difference
-	$totaltime = ($tend - $tstart);
-	//output result
-	//print '<div class="smallprint">'.sprintf(PAGE_GENERATION_TIME, $totaltime)."</div>\n</body>\n</html>";
-}
-
 $content =  ob_get_contents();
 /**
  * Use gzip compression if possible.
  */
+/*
 if ( isset($_SERVER['HTTP_ACCEPT_ENCODING']) && strstr ($_SERVER['HTTP_ACCEPT_ENCODING'], 'gzip') && function_exists('gzencode') ) #38
 {
 	// Tell the browser the content is compressed with gzip
@@ -463,9 +495,10 @@ if ( isset($_SERVER['HTTP_ACCEPT_ENCODING']) && strstr ($_SERVER['HTTP_ACCEPT_EN
 	$page_output = gzencode($content);
 	$page_length = strlen($page_output);
 } else {
+ */
 	$page_output = $content;
 	$page_length = strlen($page_output);
-}
+//}
 
 // header("Cache-Control: pre-check=0");
 header("Cache-Control: no-cache");

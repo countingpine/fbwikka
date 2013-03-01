@@ -11,6 +11,63 @@ unset($config["header_action"]);
 unset($config["footer_action"]);
 unset($config["external_link_tail"]);
 
+// Parse navlinks, convert to menu configuration files, #891 (since 1.2)
+// Check to see if config is writeable...
+if(!is_writeable('config'))
+{
+	print("<p><span class=\"failed\">WARNING:</span> The <tt>config</tt> directory is not writeable; therefore, conversion of old navigation links to new menu items cannot be performed.  Please give your web server temporary write access to the <tt>config</tt> directory (<tt>chmod 777 config</tt>; don't forget to remove write access later, i.e. <tt>chmod 555 config</tt>). If you are unable to make this directory writeable, you will need to manually edit the menu files in the <tt>config</tt> directory.  You will also need to remove the <tt>navigation_links</tt> and <tt>logged_in_navigation_links</tt> parameters in your <tt>wikka.config.php</tt> file. If you are still having difficulties, please visit <a href=\"http://docs.wikkawiki.org/WikkaInstallation\">WikkaInstallation</a>.</p>\n"); 
+	?>
+	<form action="<?php echo myLocation() ?>?installAction=writeconfig" method="post">
+	<input type="hidden" name="config" value="<?php echo Wakka::hsc_secure(serialize($config2)) ?>" /><?php /*  #427 */ ?>
+	<input type="submit" value="Try again" />
+	</form>	
+	<?php
+	return;	
+}
+$path = 'config'.DIRECTORY_SEPARATOR;
+if(isset($config['navigation_links']))
+{
+	$navlinks = $config['navigation_links'];
+	$links = array();
+	if(FALSE!==preg_match_all('/[A-ZÄÖÜ]+[a-zßäöü]+[A-Z0-9ÄÖÜ][A-Za-z0-9ÄÖÜßäöü]*|\[\[.*?\]\]/', $navlinks, $links))
+	{
+		if(file_exists($path.'main_menu.inc'))
+		{
+			rename($path.'main_menu.inc', $path.'main_menu.orig.inc');
+		}
+		$h = fopen($path.'main_menu.inc', 'w'); 
+		foreach($links[0] as $link)
+		{
+			fwrite($h, $link."\n");
+		}
+		fwrite($h, "{{searchform}}\n");
+		fwrite($h, 'Your hostname is {{whoami}}');
+		fclose($h);
+	}
+	unset($config['navigation_links']);
+}
+if(isset($config['logged_in_navigation_links']))
+{
+    $navlinks = $config['logged_in_navigation_links'];
+	$links = array();
+	if(FALSE!==preg_match_all('/[A-ZÄÖÜ]+[a-zßäöü]+[A-Z0-9ÄÖÜ][A-Za-z0-9ÄÖÜßäöü]*|\[\[.*?\]\]/', $navlinks, $links))
+	{
+		if(file_exists($path.'main_menu.user.inc'))
+		{
+			rename($path.'main_menu.user.inc', $path.'main_menu.user.orig.inc');
+		}
+		$h = fopen($path.'main_menu.user.inc', 'w'); 
+		foreach($links[0] as $link)
+		{
+			fwrite($h, $link."\n");
+		}
+		fwrite($h, "{{searchform}}\n");
+		fwrite($h, 'You are {{whoami}}');
+		fclose($h);
+	}
+    unset($config['logged_in_navigation_links']); // since 1.2
+}
+
 // set version to current version, yay!
 $config["wakka_version"] = WAKKA_VERSION;
 

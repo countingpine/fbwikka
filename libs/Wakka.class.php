@@ -29,6 +29,13 @@ if(!defined('PERSISTENT_COOKIE_EXPIRY')) define('PERSISTENT_COOKIE_EXPIRY', 7776
 
 // i18n TODO:move to language file
 if(!defined('CREATE_THIS_PAGE_LINK_TITLE')) define('CREATE_THIS_PAGE_LINK_TITLE', 'Create this page');
+if(!defined('DEFAULT_THEMES_TITLE')) define('DEFAULT_THEMES_TITLE', 'Default themes (%s)'); //%s: number of available themes
+if(!defined('CUSTOM_THEMES_TITLE')) define('CUSTOM_THEMES_TITLE', 'Custom themes (%s)'); //%s: number of available themes
+
+if(!defined('NO_FILE_UPLOADED')) define ('NO_FILE_UPLOADED', "<em class='error'>No file uploaded</em>");
+if(!defined('ERROR_DURING_FILE_UPLOAD')) define ('ERROR_DURING_FILE_UPLOAD', "<em class='error'>There was an error uploading your file.  Please try again.</em>");
+if(!defined('ERROR_MAX_FILESIZE_EXCEEDED')) define('ERROR_MAX_FILESIZE_EXCEEDED', "<em class='error'>Attempted file upload was too big.  Maximum allowed size is %d MB.</em>"); 
+if(!defined('ERROR_FILE_EXISTS')) define('ERROR_FILE_EXISTS', "<em class='error'>There is already a file named <tt>%s</tt>. Please rename before uploading or delete the existing file first.</em>");
 
 /**
  * The Wikka core.
@@ -69,6 +76,7 @@ class Wakka
 			}
 		}
 		$this->VERSION = WAKKA_VERSION;
+		$this->PATCH_LEVEL = WIKKA_PATCH_LEVEL;
 	}
 
 	/**
@@ -331,7 +339,9 @@ class Wakka
 	 */
 	function ReturnSafeHTML($html)
 	{
-		require_once('3rdparty/core/safehtml/classes/safehtml.php');
+        $safehtml_classpath =
+		$this->GetConfigValue('safehtml_path').DIRECTORY_SEPARATOR.'classes'.DIRECTORY_SEPARATOR.'safehtml.php';
+        require_once $safehtml_classpath;
 
 		// Instantiate the handler
 		$safehtml =& new safehtml();
@@ -669,6 +679,7 @@ class Wakka
 	function GetConfigValue($name) { return (isset($this->config[$name])) ? $this->config[$name] : null; }
 	function GetWakkaName() { return $this->GetConfigValue("wakka_name"); }
 	function GetWakkaVersion() { return $this->VERSION; }
+	function GetWikkaPatchLevel() { return $this->PATCH_LEVEL; }
 
 	/**
 	 * Page-related methods
@@ -791,7 +802,41 @@ class Wakka
 		if ($title) return strip_tags($this->Format($title));				# fix for forced links in heading
 		else return $this->GetPageTag();
 	}
+	function MakeMenu($menu) {
+		switch(TRUE)
+		{
+			case $this->IsAdmin():
+			$menu_file = $menu.'.admin.inc';
+			break;
 
+			case $this->GetUser():
+			$menu_file = $menu.'.user.inc';
+			break;
+
+			default:
+			$menu_file = $menu.'.inc';
+			break;
+		}
+		if (file_exists('config/'.$menu_file))
+		{
+			$menu_src = $this->IncludeBuffered($menu_file, '', '', 'config/');
+			$menu_array = explode("\n", $menu_src);
+			$menu_output = '<ul id="'.$menu.'">'."\n";
+			foreach ($menu_array as $menu_item)
+			{
+				$menu_output .= '<li>'.$this->Format($menu_item).'</li>'."\n";
+			}
+			$menu_output .= '</ul>'."\n";
+		}
+		else
+		{
+			$menu_output = '<ul id="'.$menu.'">'."\n";
+			$menu_output .= '<li>no menu defined</li>'."\n";
+			$menu_output .= '</ul>'."\n";
+		}
+		return $menu_output;
+	}
+	
 	// WIKI PING  -- Coded by DreckFehler
 	function HTTPpost($host, $data, $contenttype="application/x-www-form-urlencoded", $maxAttempts = 5) {
 		$attempt =0; $status = 300; $result = "";
@@ -1187,26 +1232,46 @@ class Wakka
 		{
 			$from_tag = mysql_real_escape_string($this->GetPageTag());
 			$written = array();
+			$sql = '';
 			foreach ($linktable as $to_tag)
 			{
 				$lower_to_tag = strtolower($to_tag);
-				if (!$written[$lower_to_tag])
+				if ((!$written[$lower_to_tag]) && ($lower_to_tag != strtolower($from_tag)))
 				{
-					$this->Query("insert into ".$this->config["table_prefix"]."links set from_tag = '".$from_tag."', to_tag = '".mysql_real_escape_string($to_tag)."'");
+					if ($sql) $sql .= ', '; 
+					$sql .= "('".$from_tag."', '".mysql_real_escape_string($to_tag)."')"; 
 					$written[$lower_to_tag] = 1;
 				}
+			}
+			if($sql)
+			{
+				$this->Query("INSERT INTO {$this->config['table_prefix']}links VALUES $sql"); 
 			}
 		}
 	}
 	function Header() {
-		$header = $this->IncludeBuffered('header.php', ERROR_HEADER_MISSING, '',  $this->GetConfigValue('wikka_template_path'));
+		$filename = 'header.php';
+		$path = $this->GetThemePath();
+		$header = $this->IncludeBuffered($filename, ERROR_HEADER_MISSING, '', $path);
 		return $header;
 	}
 	function Footer() {
-		$footer = $this->IncludeBuffered('footer.php', ERROR_FOOTER_MISSING, '', $this->GetConfigValue('wikka_template_path'));
+		$filename = 'footer.php';
+		$path = $this->GetThemePath();
+		$footer = $this->IncludeBuffered($filename, ERROR_FOOTER_MISSING, '', $path);
 		return $footer;
 	}
-
+	/*
+	 * Calculates the difference between two microtimes
+	 * 
+	 * @uses Wakka::getmicrotime()
+	 */
+	function microTimeDiff($from, $to ='') {
+		if (strlen($to) == 0) $to = getmicrotime();
+		$totaltime = ($to - $from);
+		return $totaltime;
+	}
+	
 	// FORMS
 	/**
 	 * Open form.
@@ -1576,10 +1641,19 @@ class Wakka
 			}
 			$vars['wikka_vars'] = $paramlist; // <<< add the complete parameter-string to the array
 		}
-		if (!$forceLinkTracking) $this->StopLinkTracking();
-
+		if (!$forceLinkTracking) 
+		{ 
+				/** 
+				 * @var boolean holds previous state of LinkTracking before we StopLinkTracking(). It will then be used to test if we should StartLinkTracking() or not.   
+				 */ 
+				$link_tracking_state = $_SESSION['linktracking']; 
+				$this->StopLinkTracking(); 
+		} 
 		$result = $this->IncludeBuffered($action_name.'.php', 'Unknown action "'.$action_name.'"', $vars, $this->config['action_path']);
-		$this->StartLinkTracking();
+		if ($link_tracking_state) 
+		{ 
+			$this->StartLinkTracking(); 
+		} 
 		return $result;
 	}
 	function Method($method)
@@ -1622,7 +1696,103 @@ class Wakka
 		}
 		return $this->IncludeBuffered($formatter.'.php', 'Formatter "'.$formatter.'" not found', compact("text"), $this->config['wikka_formatter_path']);
 	}
-
+	/**
+     * Returns a valid template path (defaults to 'default' if theme
+	 * does not exist)
+	 *
+	 * Tries to resolve valid pathname given a 'theme' param in
+	 * wikka.config.php.  Failing that, tries to revert to a
+	 * "fallback" default theme path (currently 'templates/default').
+	 * Failing that, returns NULL.
+	 *
+	 * @param  string path_sep Use this to override the OS default 
+	 * DIRECTORY_SEPARATOR (usually used in conjunction with CSS path 
+	 * generation). Default is DIRECTORY_SEPARATOR.
+	 *
+     * @return string A fully-qualified pathname or NULL if none found 
+	 */
+	 function GetThemePath($path_sep = DIRECTORY_SEPARATOR)
+	 {
+	 	//check if custom theme is set in user preferences
+	 	if ($user = $this->GetUser())
+		{
+			$theme =  ($user['theme']!='')? $user['theme'] : $this->GetConfigValue('theme');
+		}
+		else
+		{
+			$theme = $this->GetConfigValue('theme');
+		}
+		$path = $this->BuildFullpathFromMultipath($theme, $this->GetConfigValue('wikka_template_path'), $path_sep);
+	 	if(FALSE===file_exists($path))
+		{
+			// Check on fallback theme dir...
+			if(FALSE===file_exists('templates'.$path_sep.'default'))
+			{
+				return null;
+			}
+			else
+			{
+				return 'templates'.$path_sep.'default';
+			}
+		}
+		return $path;
+	}
+	/**
+	* Build a drop-down menu with a list of available themes
+	*
+	* This function reads the content of the templates/ and plugins/templates paths and builds
+	* a list of available themes. Themes in the plugin tree override default themes with the same 
+	* name.
+	* @since
+	* @param string $default_theme optional: marks a specific theme as selected by default  
+	*/
+	function SelectTheme($default_theme='default')
+	{
+		$plugin = array();
+		$core = array();
+		// plugin path
+		$hdl = opendir('plugins/templates');
+		while ($g = readdir($hdl))
+		{
+			if ($g[0] == '.') continue;
+			else
+			{
+				$plugin[] = $g;
+			}
+		}
+		// default path
+		$hdl = opendir('templates');
+		while ($f = readdir($hdl))
+		{
+			if ($f[0] == '.') continue;
+			// theme override
+			else if (!in_array($f, $plugin))
+			{
+				$core[] = $f;
+			}
+		}
+		$output .= '<select id="select_theme" name="theme">';
+		$output .= '<option disabled="disabled">'.sprintf(DEFAULT_THEMES_TITLE, count($core)).'</option>';
+		foreach ($core as $c)
+		{		
+			$output .= "\n ".'<option value="'.$c.'"';
+			if ($c == $default_theme) $output .= ' selected="selected"';
+			$output .= '>'.$c.'</option>';
+		}
+		//display custom themes if any	
+		if (count($plugin)>0)
+		{
+			$output .= '<option disabled="disabled">'.sprintf(CUSTOM_THEMES_TITLE, count($plugin)).'</option>';
+			foreach ($plugin as $p)
+			{		
+				$output .= "\n ".'<option value="'.$p.'"';
+				if ($p == $default_theme) $output .= ' selected="selected"';
+				$output .= '>'.$p.'</option>';
+			}
+		}
+		$output .= '</select>';
+		echo $output;
+	}
 	/** 
 	 * Build a (possibly valid) filepath from a delimited list of paths  
 	 * 
@@ -1639,12 +1809,15 @@ class Wakka
 	 *              construction of fully-qualified filepath  
 	 * @param string $pathlist mandatory: list of 
 	 *              paths (delimited by ":", ";", or ",") 
+	 * @param  string path_sep Use this to override the OS default 
+     *              DIRECTORY_SEPARATOR (usually used in conjunction with CSS path 
+     *              generation). Default is DIRECTORY_SEPARATOR.
 	 * @param  boolean $checkIfFileExists optional: if TRUE, returns 
 	 *              only a pathname that points to a file that exists 
 	 *              (default) 
 	 * @return string A fully-qualified pathname or NULL if none found 
 	 */ 
-	function BuildFullpathFromMultipath($filename, $pathlist, $checkIfFileExists=TRUE) 
+	function BuildFullpathFromMultipath($filename, $pathlist, $path_sep = DIRECTORY_SEPARATOR, $checkIfFileExists=TRUE) 
 	{ 
 		$paths = preg_split('/;|:|,/', $pathlist); 
 		if(empty($paths[0])) return NULL; 
@@ -1656,7 +1829,7 @@ class Wakka
 				$path = trim($path); 
 				if(file_exists($path)) 
 				{ 
-						return $path.DIRECTORY_SEPARATOR.$filename; 
+						return $path.$path_sep.$filename; 
 				} 
 			} 
 			return NULL; 
@@ -1664,7 +1837,7 @@ class Wakka
 		foreach($paths as $path) 
 		{ 
 			$path = trim($path); 
-			$fqfn = $path.DIRECTORY_SEPARATOR.$filename; 
+			$fqfn = $path.$path_sep.$filename; 
 			if(file_exists($fqfn)) return $fqfn; 
 		} 
 		return NULL; 
@@ -1673,7 +1846,26 @@ class Wakka
 	// USERS
 	function LoadUser($name, $password = 0) { return $this->LoadSingle("select * from ".$this->config['table_prefix']."users where name = '".mysql_real_escape_string($name)."' ".($password === 0 ? "" : "and password = '".mysql_real_escape_string($password)."'")." limit 1"); }
 	function LoadUsers() { return $this->LoadAll("select * from ".$this->config['table_prefix']."users order by name"); }
-	function GetUserName() { if ($user = $this->GetUser()) $name = $user["name"]; else if (!$name = gethostbyaddr($_SERVER["REMOTE_ADDR"])) $name = $_SERVER["REMOTE_ADDR"]; return $name; }
+	function GetUserName()
+	{
+		if ($user = $this->GetUser())
+		{
+			$name = $user['name'];
+		}
+		else
+		{
+			$ip = $_SERVER['REMOTE_ADDR'];
+			if ($this->config['enable_user_host_lookup'] == 1)	// #240
+			{
+				$name = gethostbyaddr($ip) ? gethostbyaddr($ip) : $ip;
+			}
+			else
+			{
+				$name = $ip;
+			}
+		}
+		return $name;
+	}
 	function GetUser() { return (isset($_SESSION["user"])) ? $_SESSION["user"] : NULL; }
 	function SetUser($user) { $_SESSION["user"] = $user; $this->SetPersistentCookie("user_name", $user["name"]); $this->SetPersistentCookie("pass", $user["password"]); }
 	function LogoutUser() 
@@ -2006,15 +2198,16 @@ class Wakka
 		{
 			print $this->Header();
 
-			if (isset($_POST['action']) && $_POST['action'] == 'upload') {
-				if ($this->page && $this->HasAccess('read')) {
-					switch ($this->method) {
-					case 'print.xml':
-					case 'edit':
-						break;
-					default:
-						$this->CheckUploadedFiles();
-					}
+			// Upload?
+			if (isset($_POST['action']) && $_POST['action'] == 'upload')
+			{
+				// Show files to anyone with read access, we'll check for write access if they try to delete a file.
+				if ($this->page &&
+				    $this->HasAccess('read') &&
+				    ($this->method <> 'print.xml') &&
+				    ($this->method <> 'edit'))
+				{
+					$this->CheckUploadedFiles();
 				}
 			}
 
@@ -2080,13 +2273,12 @@ class Wakka
 	{
    		if( !$this->HasAccess('write') )
    			return;
-   			
-   		$max_upload_size = $this->config[ 'max_upload_size' ];
 
     	$upload_path = $this->config['upload_path'] . '/'. $this->GetPageTag( );
-    	
+
     	$max_upload_size = $this->config[ 'max_upload_size' ];
-    	
+
+		// Table of uploaded/attached files
         print  '<table cellspacing="0" cellpadding="0">
 				<tr>
 				<td>&nbsp;</td>
@@ -2129,72 +2321,57 @@ class Wakka
 		print '</table>';
 	}
    
-	//
-   	//
-   	//
 	function CheckUploadedFiles( )
    	{
 		$upload_path = $this->config['upload_path'] . '/' . $this->GetPageTag( );	
-		
 		$max_upload_size = $this->config[ 'max_upload_size' ];
-	    
+
 	    if( !is_dir( $upload_path ) ) 
 	    	mkdir_r( $upload_path );
-	
+
 	    // upload action
 	    $uploaded = $_FILES['file'];
-	   
+
 		switch( $_FILES['file']['error'] )
 		{
 		case 0:
 			if( $_FILES["file"]["size"] > $max_upload_size ) 
 			{
-				echo "<b>Attempted file upload was too big.  Maximum allowed size is " . 
-					 bytesToHumanReadableUsage( $max_upload_size ) . ".</b>"; 
-				 	
+				echo sprintf(ERROR_MAX_FILESIZE_EXCEEDED, bytesToHumanReadableUsage($max_upload_size));
 			 	unlink( $uploaded['tmp_name'] );
 			} 
 			else 
 			{	
 				$strippedname = str_replace( "'", '', $uploaded['name'] );
 				$strippedname = stripslashes( $strippedname );
-	
+
 				$destfile = $upload_path . '/' . $strippedname;
-	
+
 				if( !file_exists( $destfile ) )
 				{
-					if( move_uploaded_file( $uploaded['tmp_name'], $destfile ) )
+					if (!move_uploaded_file($uploaded['tmp_name'], $destfile))
 					{
-						// echo( "<b>File was successfully uploaded.</b><br />\n" );
-					}
-					else
-					{
-						echo( "<b>There was an error uploading your file.</b><br />\n" );
+						echo(ERROR_DURING_FILE_UPLOAD . "<br />\n");
 					}
 				}
 				else
 				{
-					echo "<b>There is already a file named \"" . 
-						 $strippedname . 
-						 "\".</b> <br />\nPlease rename before uploading or delete the existing file below.<br />\n";
+					echo sprintf(ERROR_FILE_EXISTS, $strippedname);
 				}
 			}
-			
 			break;
-				
+
 		case 1:
 		case 2: // File was too big.... as reported by the browser, respecting MAX_FILE_SIZE
-			echo "<b>Attempted file upload was too big. Maximum allowed size is " . 
-				 bytesToHumanReadableUsage( $max_upload_size ) . 
-				 ".</b>"; 
+			echo sprintf(ERROR_MAX_FILESIZE_EXCEEDED, bytesToHumanReadableUsage($max_upload_size));
 			break;
-		
+
 		case 3:
-			echo "<b>File upload incomplete! Please try again.</b><br />\n";
+			echo ERROR_DURING_FILE_UPLOAD;
 			break;
-			
+
 		case 4:
-			echo "<b>No file uploaded.</b><br />\n";
+			echo NO_FILE_UPLOADED;
 			break;
 		}
 	}

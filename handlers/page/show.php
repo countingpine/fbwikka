@@ -40,21 +40,23 @@ define('SHOW_OLD_REVISION_SOURCE', 0); # if set to 1 shows by default the source
 //validate URL parameters
 $raw = (!empty($_GET['raw']))? (int) $this->GetSafeVar('raw', 'get') : SHOW_OLD_REVISION_SOURCE;
 
-echo "\n".'<!--starting page content-->'."\n";
-echo '<div class="page"';
+?>
+<!-- BEGIN PAGE CONTENT -->
+<?php
+echo '<div id="content"';
 echo (($user = $this->GetUser()) && ($user['doubleclickedit'] == 'N') || !$this->HasAccess('write')) ? '' : ' ondblclick="document.location=\''.$this->Href('edit', '', 'id='.$this->page['id']).'\';" '; #268
 echo '>'."\n"; //TODO: move to templating class
 
 if (!$this->HasAccess('read'))
 {
-	echo '<!-- <wiki-error>forbidden</wiki-error> --><p><em class="error">You aren\'t allowed to read this page.</em></p></div>';
+	echo '<!-- <wiki-error>forbidden</wiki-error> --><p><em class="error">You aren\'t allowed to read this page.</em></p>';
 	echo "\n".'</div><!--closing page content-->'."\n"; //TODO: move to templating class
 }
 else
 {
 	if (!$this->page)
 	{
-		echo '<!-- <wiki-error>not found</wiki-error> --><p>This page doesn\'t exist yet. Maybe you want to <a href="'.$this->Href('edit').'">create</a> it?</p></div>';
+		echo '<!-- <wiki-error>not found</wiki-error> --><p>This page doesn\'t exist yet. Maybe you want to <a href="'.$this->Href('edit').'">create</a> it?</p>';
 		echo '</div><!--closing page content-->'."\n"; //TODO: move to templating class
 	}
 	else
@@ -98,10 +100,11 @@ else
 		{
 			echo $this->Format($this->page['body'], 'wakka', 'page');
 		}
-		//clear floats at the end of the main div
-		echo "\n".'<div style="clear: both"></div>'."\n";
-		echo "\n".'</div><!--closing page content-->'."\n\n";
-
+?>
+<div style="clear: both"></div>
+</div>
+<!-- END PAGE CONTENT -->
+<?php
 		if( $this->GetConfigValue( 'show_attached_files' ) == 1 )
 		{
 			print '<div class="commentsheader">';
@@ -130,21 +133,23 @@ else
 					break;
 				}
 			}
-			// display comments!
+?>
+<!-- BEGIN COMMENT BLOCK -->
+<div id="comments">
+<?php
 			if ($_SESSION['show_comments'][$tag])
 			{
-				// display comments header
 ?>
-<!--starting comment block-->
-<div class="commentsheader">
-<span id="comments">&nbsp;</span>Comments [<a href="<?php echo $this->Href('', '', 'show_comments=0') ?>">Hide comments/form</a>]
+<div id="commentheader">
+Comments [<a href="<?php echo $this->Href('', '', 'show_comments=0') ?>">Hide comments/form</a>]
 </div>
 <?php
 				// display comments themselves
 				if ($comments)
 				{
 					$current_user = $this->GetUserName(); 
-		 			foreach ($comments as $comment)
+					echo '<div id="commentlist">'."\n";
+					foreach ($comments as $comment)
 					{
 						echo '<div class="comment">'."\n".
 							'<span id="comment_'.$comment['id'].'"></span>'.$comment['comment']."\n".
@@ -164,9 +169,10 @@ else
 						echo "\n\t".'</div>'."\n";
 						echo '</div>'."\n";
 					}
+					echo '</div>'."\n";
 				}
 				// display comment form
-				echo '<div class="commentform">'."\n";
+				echo '<div id="commentform">'."\n";
 				if ($this->HasAccess('comment'))
 				{?>
 		    		<?php echo $this->FormOpen('addcomment'); ?>
@@ -182,8 +188,7 @@ else
 			else
 			{
 			?>
-<!--starting comment block-->
-<div class="commentsheader">
+<div id="commentheader">
 <p>
 <?php
 				switch (count($comments))
@@ -205,8 +210,11 @@ else
 </div>
 <?php
 			}
+?>
+</div>
+<!-- END COMMENT BLOCK -->
+<?php
 		}
 	}
 }
 ?>
-<!--closing comment block-->

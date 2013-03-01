@@ -1,43 +1,4 @@
+**Wikka Release Notes for Version 1.2 (Released 01Sep2009)**
 
-   [1]Wikka Changelog
-     _________________________________________________________________
-
-[2]Wikka 1.1.6.7 Release Notes
-
-   Released on Jun 15, 2009
-
-See also:
-
-     * [3]What's new in 1.1.6.7
-     * [4]Installation & upgrade notes for 1.1.6.7
-     * [5]How to use the plugins folder
-
-      Acknowledgments
-
-   Thanks to Ian Andolina, Sven Krewitt (Secunia).
-
-      Security fixes
-
-     * Added random tokens (form IDs) to form submissions to mitigate
-       CSRF attacks. Ticket: 154
-     * Added validation checks for GET params on admin pages to mitigate
-       XSS attacks. Ticket: 879
-
-      Misc
-
-     * Shortened default timeout when Wikka server not reachable for
-       version checks; produce a more meaningful error message. Ticket:
-       884
-     _________________________________________________________________
-
-   CategoryEN
-
-   Page was generated in 0.0296 seconds
-
-References
-
-   1. http://docs.wikkawiki.org/WikkaReleaseNotes
-   2. http://docs.wikkawiki.org/WhatsNew1166
-   3. http://docs.wikkawiki.org/WhatsNew1167
-   4. http://docs.wikkawiki.org/Installing1167/edit
-   5. http://docs.wikkawiki.org/InstallingPlugins
+For the latest WikkaWiki 1.2 release notes, please visit 
+http://docs.wikkawiki.org/WikkaReleaseNotes12

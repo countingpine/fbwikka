@@ -4,7 +4,7 @@
  * 
  * @package		Handlers
  * @subpackage	Referrers	
- * @version		$Id: referrers_sites.php 1267 2008-12-20 03:30:54Z BrianKoontz $
+ * @version		$Id: referrers_sites.php 1365 2009-05-07 22:07:26Z DarTar $
  * @license http://www.gnu.org/copyleft/gpl.html GNU General Public License
  * @filesource
  * 
@@ -19,7 +19,7 @@
  * @todo		move <div> to template
  */
 
-echo '<div class="page">'."\n"; //TODO: move to templating class
+echo '<div id="content">'."\n"; //TODO: move to templating class
 
 $global = '';
 $IsAdmin = $this->IsAdmin();
