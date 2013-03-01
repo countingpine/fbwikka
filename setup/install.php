@@ -95,6 +95,7 @@ case "0":
 			"CREATE TABLE ".$config['table_prefix']."pages (".
 			"id int(10) unsigned NOT NULL auto_increment,".
 			"tag varchar(75) NOT NULL default '',".
+			"title varchar(75) NOT NULL default '',".
 			"time datetime NOT NULL default '0000-00-00 00:00:00',".
 			"body mediumtext NOT NULL,".
 			"owner varchar(75) NOT NULL default '',".
@@ -203,6 +204,7 @@ case "0":
 	'PageIndex', 
 	'PasswordForgotten', 
 	'RecentChanges', 
+	'RecentComments',
 	'RecentlyCommented', 
 	'SandBox', 
 	'SysInfo',
@@ -516,7 +518,7 @@ case "1.2":
 			 "config/options_menu.user.inc.prev");
 case "1.3":
 case "1.3.1":
-	print("<strong>1.3.1 to 1.4 changes:</strong><br />\n");
+	print("<strong>1.3.1 to 1.3.2 changes:</strong><br />\n");
 	update_default_page(array(
 	'AdminBadWords',
 	'AdminSpamLog',
@@ -570,7 +572,6 @@ case "1.3.1":
 	@mysql_query("ALTER TABLE ".$config['table_prefix']."users CHANGE `default_comment_display` `default_comment_display` ENUM( 'date_asc','date_desc','threaded' ) CHARACTER SET utf8 COLLATE utf8_unicode_ci NOT NULL default 'threaded'", $dblink);
 	@mysql_query("ALTER TABLE ".$config['table_prefix']."users CHANGE `status` `status` ENUM( 'invited','signed-up','pending','active','suspended','banned','deleted') CHARACTER SET utf8 COLLATE utf8_unicode_ci", $dblink);
 	@mysql_query("ALTER TABLE ".$config['table_prefix']."users CHANGE `theme` `theme` VARCHAR( 50 ) CHARACTER SET utf8 COLLATE utf8_unicode_ci default ''", $dblink); // refs #1022
-	@mysql_query("ALTER TABLE ".$config['table_prefix']."users CHANGE `challenge` `challenge` VARCHAR( 8 ) CHARACTER SET utf8 COLLATE utf8_unicode_ci NOT NULL default ''", $dblink); // refs #1023
 	// Converting comments table and fields to UTF-8
 	test("Setting up comments table and fields for UTF-8...", true);
 	@mysql_query("ALTER TABLE ".$config['table_prefix']."comments DEFAULT CHARACTER SET utf8 COLLATE utf8_unicode_ci", $dblink);
@@ -589,6 +590,10 @@ case "1.3.1":
 	@mysql_query("alter table ".$config["table_prefix"]."users ADD challenge varchar(8) CHARACTER SET utf8 COLLATE utf8_unicode_ci DEFAULT ''", $dblink), __("Already done? OK!"), 0);
 	@mysql_query("alter table ".$config["table_prefix"]."users CHANGE `challenge` `challenge` varchar(8) CHARACTER SET utf8 COLLATE utf8_unicode_ci DEFAULT ''", $dblink);
 	@mysql_query("UPDATE ".$config['table_prefix']."users SET challenge='' WHERE challenge='00000000'", $dblink);
+case "1.3.2": 
+	print("<strong>1.3.2 to 1.3.3 changes:</strong><br />\n");
+	test("Adding/updating title field to users page ...",  
+	@mysql_query("alter table `".$config["table_prefix"]."pages` ADD `title` varchar(75) CHARACTER SET utf8 COLLATE utf8_unicode_ci DEFAULT '' AFTER `tag`", $dblink), __("Already done? OK!"), 0); // refs #529
 case "1.4":
 }
 

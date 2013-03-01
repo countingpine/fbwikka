@@ -8,11 +8,11 @@
  * @license		http://www.gnu.org/copyleft/gpl.html GNU General Public License
  * @filesource
  *
- * @uses		Config::$wakka_name
- * @uses		Wakka::GetConfigValue()
+ * @uses		Wakka::GetPageTag()
+ * @uses		Wakka::GetWakkaName()
  * @uses		Wakka::HasAccess()
- * @uses		Wakka::LoadRevisions()
  * @uses		Wakka::Href()
+ * @uses		Wakka::LoadRevisions()
  * @uses		Wakka::htmlspecialchars_ent()
  */
 
@@ -21,15 +21,15 @@ header('Content-type: text/xml');
 $xml = '<?xml version="1.0" encoding="UTF-8" ?>'."\n";
 $xml .= '<rss version="2.0">'."\n";
 $xml .= "<channel>\n";
-$xml .= '<title>'.$this->GetConfigValue('wakka_name').' - '.$this->tag."</title>\n";
+$xml .= '<title>'.$this->GetWakkaName().' - '.$this->GetPageTag()."</title>\n";
 $xml .= '<link>'.$this->Href()."</link>\n";
-$xml .= '<description>'.sprintf(T_("History/revisions of %s"), $this->GetConfigValue('wakka_name').'/'.$this->tag)."</description>\n";
+$xml .= '<description>'.sprintf(T_("History/revisions of %s"), $this->GetWakkaName().'/'.$this->GetPageTag())."</description>\n";
 $xml .= '<language>'.T_("en-US")."</language>\n";
 
 if ($this->HasAccess('read'))
 {
 	// load revisions for this page
-	if ($pages = $this->LoadRevisions($this->tag))
+	if ($pages = $this->LoadRevisions($this->GetPageTag()))
 	{
 		$max = 20;
 
