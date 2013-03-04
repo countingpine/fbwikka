@@ -54,12 +54,16 @@ if (empty($vars['url']))
 {
 	$vars['url'] = $vars['src'];
 }
-$vars['src'] = $this->StaticHref($this->cleanUrl($vars['url']));
+$vars['src'] = $this->cleanUrl($vars['url']);
 
+/* FBWiki: /images/myimage.gif -> /images/uploaded/PageName/myimage.gif */
 if( substr( $vars['src'], 0, 7 ) == '/images' )
 {
 	$vars['src'] = $this->config['upload_path'] . '/' . $this->GetPageTag() . '/' . basename( $vars['src'] );
 }
+
+/* Prepend base URL */
+$vars['src'] = $this->StaticHref($vars['src']);
 
 /* 2.5) Check if image is valid */
 if ('always' == $check_image)
